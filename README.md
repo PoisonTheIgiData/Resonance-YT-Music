@@ -346,14 +346,22 @@ After updating, the **What's new** card shows that release's notes.
 
 **Publishing a new version (maintainers)**
 
-1. Raise `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json` (same number everywhere), and commit.
-2. Tag it with the same number and push the tag:
+The easy way: double-click **`Publish-to-GitHub.bat`** (kept next to the repository folder, not inside it). It uploads
+your changes, asks for the version number (Enter accepts the suggested next one), writes the release notes from the
+change descriptions, and starts the release.
+
+By hand:
+
+1. Set the new version everywhere it's stored:
+   `powershell -File scripts\version.ps1 -Set 1.1.0` (updates `tauri.conf.json`, `Cargo.toml`, `Cargo.lock`,
+   `package.json` and `package-lock.json`), then commit.
+2. Tag it with the same number and push the tag. The tag's message becomes the release notes:
    ```
-   git tag v1.1.0
-   git push origin v1.1.0
+   git tag -a v1.1.0 -m "Changes in 1.1.0: ..."
+   git push origin main v1.1.0
    ```
-3. The **Release** workflow (`.github/workflows/release.yml`) builds the installer on GitHub and publishes the release
-   with it attached. Edit the release on GitHub to write the notes. They become the in-app *What's new* text.
+3. The **Release** workflow (`.github/workflows/release.yml`) builds the installer on GitHub (about 10–15 minutes) and
+   publishes the release with it attached. The notes become the in-app *What's new* text.
 
 Forks: change `UPDATE_REPO` in `src-tauri/src/extras.rs` and `src-tauri/inject/ui.js` to point a build at another repository.
 
@@ -439,6 +447,7 @@ No analytics or telemetry, and no other servers.
 Build.bat / Run-Dev.bat        build the installer / run a development build
 package.json, package-lock.json  Tauri CLI
 LICENSE                        Apache License 2.0
+scripts/version.ps1            reads / sets the version number in every file that holds it
 dist/
   widget.html, widget-render.js  taskbar player (+ Bluetooth bubble); renderer shared with the layout editor
   overlay.html                 song-change pop-up
