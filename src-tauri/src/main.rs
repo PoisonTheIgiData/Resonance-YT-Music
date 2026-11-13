@@ -91,6 +91,190 @@ fn remember_mode(app: &AppHandle) {
     }
 }
 
+// ---------------- transitions ----------------
+
+/// Bumped whenever a window transition starts, so an older one still running stops.
+static WIN_ANIM: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Bumped whenever the taskbar player is shown or hidden (a delayed hide must not hide it again).
+static WIDGET_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Smoothly move/resize a window between two rectangles (physical pixels), then run `done`.
+fn animate_window<F>(w: &WebviewWindow, from: (PhysicalPosition<i32>, PhysicalSize<u32>), to: (PhysicalPosition<i32>, PhysicalSize<u32>), ms: u64, done: F)
+where
+    F: FnOnce(&WebviewWindow) + Send + 'static,
+{
+    use std::sync::atomic::Ordering;
+    let gen = WIN_ANIM.fetch_add(1, Ordering::SeqCst) + 1;
+    let w = w.clone();
+    std::thread::spawn(move || {
+        let steps = (ms / 15).max(1);
+        let lerp = |a: f64, b: f64, t: f64| a + (b - a) * t;
+        for i in 1..=steps {
+            if WIN_ANIM.load(Ordering::SeqCst) != gen {
+                return; // a newer transition took over
+            }
+            let t = i as f64 / steps as f64;
+            let e = 1.0 - (1.0 - t).powi(3); // ease-out
+            let x = lerp(from.0.x as f64, to.0.x as f64, e).round() as i32;
+            let y = lerp(from.0.y as f64, to.0.y as f64, e).round() as i32;
+            let cw = lerp(from.1.width as f64, to.1.width as f64, e).round() as u32;
+            let ch = lerp(from.1.height as f64, to.1.height as f64, e).round() as u32;
+            let _ = w.set_position(PhysicalPosition::new(x, y));
+            let _ = w.set_size(PhysicalSize::new(cw.max(1), ch.max(1)));
+            std::thread::sleep(Duration::from_millis(15));
+        }
+        if WIN_ANIM.load(Ordering::SeqCst) == gen {
+            done(&w);
+        }
+    });
+}
+
+// ---------------- gliding into / out of the taskbar player ----------------
+
+/// Settings → Animations (the page tells us when it changes).
+static ANIMS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Where the window was before it glided into the taskbar player, so it can grow back out of it.
+#[derive(Clone, Copy)]
+#[cfg_attr(not(windows), allow(dead_code))]
+struct Docked {
+    pos: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
+    mini: bool,
+    /// screen → Windows "workspace" coordinates (differs when the taskbar is on the top or left)
+    dx: i32,
+    dy: i32,
+}
+static DOCKED: Mutex<Option<Docked>> = Mutex::new(None);
+/// True while the window is shrinking into the taskbar player.
+static DOCKING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(windows)]
+mod winfx {
+    use std::ffi::c_void;
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct Pt { pub x: i32, pub y: i32 }
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct Rect { pub left: i32, pub top: i32, pub right: i32, pub bottom: i32 }
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct Placement { pub length: u32, pub flags: u32, pub show_cmd: u32, pub min: Pt, pub max: Pt, pub normal: Rect }
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetWindowPlacement(hwnd: *mut c_void, p: *mut Placement) -> i32;
+        fn SetWindowPlacement(hwnd: *mut c_void, p: *const Placement) -> i32;
+    }
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(hwnd: *mut c_void, attr: u32, value: *const c_void, size: u32) -> i32;
+    }
+    pub const SW_MINIMIZE: u32 = 6;
+    pub const SW_RESTORE: u32 = 9;
+    fn hwnd(w: &tauri::WebviewWindow) -> Option<*mut c_void> {
+        w.hwnd().ok().map(|h| h.0 as *mut c_void)
+    }
+    /// Turn Windows' own minimize / restore animation off (it always flies to the taskbar icon).
+    pub fn no_transitions(w: &tauri::WebviewWindow, off: bool) {
+        if let Some(h) = hwnd(w) {
+            let v: i32 = off as i32;
+            unsafe { DwmSetWindowAttribute(h, 3 /* DWMWA_TRANSITIONS_FORCEDISABLED */, &v as *const i32 as *const c_void, 4); }
+        }
+    }
+    pub fn placement(w: &tauri::WebviewWindow) -> Option<Placement> {
+        let h = hwnd(w)?;
+        let mut p = Placement { length: std::mem::size_of::<Placement>() as u32, ..Default::default() };
+        (unsafe { GetWindowPlacement(h, &mut p) } != 0).then_some(p)
+    }
+    pub fn set_placement(w: &tauri::WebviewWindow, p: &Placement) {
+        if let Some(h) = hwnd(w) {
+            let mut p = *p;
+            p.length = std::mem::size_of::<Placement>() as u32;
+            unsafe { SetWindowPlacement(h, &p); }
+        }
+    }
+}
+
+/// With the taskbar player on, Windows' minimize animation (aimed at the taskbar icon) is replaced
+/// by Resonance's own (into the taskbar player). Without it, Windows' animation is the right one.
+fn sync_transitions(app: &AppHandle) {
+    #[cfg(windows)]
+    if let Some(m) = main_window(app) {
+        let on = *app.state::<AppState>().widget_enabled.lock().unwrap();
+        winfx::no_transitions(&m, on);
+    }
+    #[cfg(not(windows))]
+    let _ = app;
+}
+
+fn restore_min_size(w: &WebviewWindow, mini: bool) {
+    let _ = if mini { w.set_min_size(Some(tauri::LogicalSize::new(300.0, 120.0))) } else { w.set_min_size(Some(tauri::LogicalSize::new(960.0, 620.0))) };
+}
+
+/// The taskbar player's rectangle (positioned even while hidden).
+fn widget_rect(app: &AppHandle, place: bool) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    let wg = app.get_webview_window("widget")?;
+    if place {
+        position_widget(app, &wg);
+    }
+    let (p, s) = (wg.outer_position().ok()?, wg.inner_size().ok()?);
+    (s.width > 0 && s.height > 0).then_some((p, s))
+}
+
+/// Minimize (or hide to the tray) by shrinking the window straight into the taskbar player.
+/// Returns false when that doesn't apply (animations off, no taskbar player, maximized…), so the
+/// caller does a normal minimize / hide.
+fn dock(app: &AppHandle, w: &WebviewWindow, to_tray: bool) -> bool {
+    use std::sync::atomic::Ordering;
+    if !ANIMS.load(Ordering::SeqCst) || !*app.state::<AppState>().widget_enabled.lock().unwrap() {
+        return false;
+    }
+    if !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(true) || w.is_maximized().unwrap_or(true) || w.is_fullscreen().unwrap_or(true) {
+        return false;
+    }
+    let (Ok(pos), Ok(size)) = (w.outer_position(), w.inner_size()) else { return false };
+    let Some(target) = widget_rect(app, true) else { return false };
+    #[cfg(windows)]
+    let (dx, dy) = winfx::placement(w).map(|p| (pos.x - p.normal.left, pos.y - p.normal.top)).unwrap_or((0, 0));
+    #[cfg(not(windows))]
+    let (dx, dy) = (0, 0);
+    let mini = app.state::<AppState>().mini_prev.lock().unwrap().is_some();
+    *DOCKED.lock().unwrap() = Some(Docked { pos, size, mini, dx, dy });
+    DOCKING.store(true, Ordering::SeqCst);
+    sync_transitions(app);
+    let _ = w.eval("window.__resDock && window.__resDock(150)"); // tint the window like the taskbar player
+    let _ = w.set_min_size(None::<tauri::Size>);
+    let a = app.clone();
+    animate_window(w, (pos, size), target, 250, move |w| {
+        // the taskbar player appears exactly where the window ended up, then the window goes away
+        maybe_show_widget_as(&a, "pop");
+        if to_tray {
+            let _ = w.hide();
+            let _ = w.set_position(pos);
+            let _ = w.set_size(size);
+        } else {
+            #[cfg(windows)]
+            match winfx::placement(w) {
+                Some(mut p) => {
+                    // minimized, but remembering the full-size spot to come back to
+                    p.flags = 0;
+                    p.show_cmd = winfx::SW_MINIMIZE;
+                    p.normal = winfx::Rect { left: pos.x - dx, top: pos.y - dy, right: pos.x - dx + size.width as i32, bottom: pos.y - dy + size.height as i32 };
+                    winfx::set_placement(w, &p);
+                }
+                None => { let _ = w.set_position(pos); let _ = w.set_size(size); let _ = w.minimize(); }
+            }
+            #[cfg(not(windows))]
+            { let _ = w.set_position(pos); let _ = w.set_size(size); let _ = w.minimize(); }
+        }
+        DOCKING.store(false, Ordering::SeqCst);
+        remember_mode(&a);
+        main_memory(&a);
+    });
+    true
+}
+
 // ---------------- memory ----------------
 
 /// While Resonance is hidden or minimized, ask WebView2 to use as little memory as it can
@@ -258,11 +442,55 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
 }
 
 fn show_main(app: &AppHandle) {
+    use std::sync::atomic::Ordering;
+    let from = widget_rect(app, false).filter(|_| app.get_webview_window("widget").map(|w| w.is_visible().unwrap_or(false)).unwrap_or(false));
     hide_widget(app);
     if let Some(w) = main_window(app) {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
+        let hidden = !w.is_visible().unwrap_or(true);
+        let minimized = w.is_minimized().unwrap_or(false);
+        let docked = DOCKED.lock().unwrap().take();
+        DOCKING.store(false, Ordering::SeqCst);
+        match (docked, from) {
+            (Some(d), Some(from)) if (hidden || minimized) && ANIMS.load(Ordering::SeqCst) => {
+                // grow back out of the taskbar player
+                let _ = w.eval("window.__resDock && window.__resDock(0)");
+                if minimized {
+                    #[cfg(windows)]
+                    match winfx::placement(&w) {
+                        Some(mut p) => {
+                            p.flags = 0;
+                            p.show_cmd = winfx::SW_RESTORE;
+                            p.normal = winfx::Rect { left: from.0.x - d.dx, top: from.0.y - d.dy, right: from.0.x - d.dx + from.1.width as i32, bottom: from.0.y - d.dy + from.1.height as i32 };
+                            winfx::set_placement(&w, &p);
+                        }
+                        None => { let _ = w.unminimize(); }
+                    }
+                    #[cfg(not(windows))]
+                    { let _ = w.unminimize(); }
+                } else {
+                    let _ = w.set_position(from.0);
+                    let _ = w.set_size(from.1);
+                }
+                let _ = w.show();
+                let _ = w.set_focus();
+                animate_window(&w, from, (d.pos, d.size), 260, move |w| {
+                    restore_min_size(w, d.mini);
+                    let _ = w.eval("window.__resAppear && window.__resAppear()");
+                });
+            }
+            (d, _) => {
+                if hidden || d.is_some() {
+                    let _ = w.eval("window.__resAppear && window.__resAppear()"); // fades in (no Windows animation for this)
+                }
+                let _ = w.unminimize();
+                if let Some(d) = d {
+                    if hidden { let _ = w.set_position(d.pos); let _ = w.set_size(d.size); }
+                    restore_min_size(&w, d.mini);
+                }
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
     }
     *app.state::<AppState>().main_ready.lock().unwrap() = true;
     remember_mode(app);
@@ -374,12 +602,22 @@ fn push_widget_state(app: &AppHandle) {
 }
 
 fn maybe_show_widget(app: &AppHandle) {
+    maybe_show_widget_as(app, "rise");
+}
+
+/// `how`: "rise" (up into the taskbar) or "pop" (in place, when the window just shrank into it)
+fn maybe_show_widget_as(app: &AppHandle, how: &str) {
     if !*app.state::<AppState>().widget_enabled.lock().unwrap() {
         return;
     }
     if let Some(w) = app.get_webview_window("widget") {
+        let was_visible = w.is_visible().unwrap_or(false);
+        WIDGET_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         position_widget(app, &w);
         push_widget_state(app);
+        if !was_visible {
+            let _ = w.eval(format!("window.resShow && window.resShow({how:?})")); // rises up into the taskbar
+        }
         let _ = w.show();
         let _ = w.set_always_on_top(true);
         // Windows can ignore a position set before a window's first show and re-place it;
@@ -401,9 +639,38 @@ fn maybe_show_widget(app: &AppHandle) {
 fn hide_widget(app: &AppHandle) {
     *app.state::<AppState>().widget_panel.lock().unwrap() = (0.0, 0.0);
     if let Some(w) = app.get_webview_window("widget") {
-        let _ = w.eval("window.resPanel && window.resPanel(false)");
-        let _ = w.hide();
+        if !w.is_visible().unwrap_or(false) {
+            return;
+        }
+        let _ = w.eval("window.resPanel && window.resPanel(false); window.resHideAnim && window.resHideAnim()");
+        // let it slide down first; skip if it was shown again meanwhile
+        let gen = WIDGET_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(170));
+            if WIDGET_GEN.load(std::sync::atomic::Ordering::SeqCst) == gen {
+                let _ = w.hide();
+            }
+        });
     }
+}
+
+/// Hide the taskbar player once the main window has really stayed on screen for a moment
+/// (window events fire in bursts while Windows minimizes / restores; reacting to each one made
+/// the taskbar player flicker).
+fn hide_widget_soon(app: &AppHandle) {
+    let gen = WIDGET_GEN.load(std::sync::atomic::Ordering::SeqCst);
+    let a = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(120));
+        if WIDGET_GEN.load(std::sync::atomic::Ordering::SeqCst) != gen || DOCKED.lock().map(|d| d.is_some()).unwrap_or(false) {
+            return;
+        }
+        if let Some(m) = main_window(&a) {
+            if m.is_visible().unwrap_or(false) && !m.is_minimized().unwrap_or(true) {
+                hide_widget(&a);
+            }
+        }
+    });
 }
 
 /// Send a player command (toggle / next / prev / pause) into the page.
@@ -425,8 +692,16 @@ fn truncate(s: &str, n: usize) -> String {
 
 #[tauri::command]
 fn res_win(window: WebviewWindow, action: String) -> Result<bool, String> {
+    // "mini_on:instant" / "mini_off:instant": the same without the resize animation (animations off)
+    let (action, instant) = match action.strip_suffix(":instant") { Some(a) => (a.to_string(), true), None => (action, false) };
     let r = match action.as_str() {
-        "minimize" => window.minimize(),
+        "minimize" => {
+            if !instant && dock(window.app_handle(), &window, false) { Ok(()) } else { window.minimize() }
+        }
+        "anim:on" | "anim:off" => {
+            ANIMS.store(action == "anim:on", std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
         "toggle_max" => {
             if window.is_maximized().unwrap_or(false) {
                 window.unmaximize()
@@ -495,8 +770,20 @@ fn res_win(window: WebviewWindow, action: String) -> Result<bool, String> {
                 }
             }
             let _ = window.set_min_size(Some(tauri::LogicalSize::new(300.0, 120.0)));
-            let _ = window.set_size(tauri::LogicalSize::new(400.0, 152.0));
             let _ = window.set_always_on_top(true);
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let target = PhysicalSize::new((400.0 * scale) as u32, (152.0 * scale) as u32);
+            let visible = window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false);
+            match (visible && !instant, window.outer_position(), window.inner_size()) {
+                (true, Ok(p), Ok(sz)) if sz.width > target.width => {
+                    // shrink toward the window's top-right corner, where the mini player ends up
+                    let to_pos = PhysicalPosition::new(p.x + sz.width as i32 - target.width as i32, p.y);
+                    animate_window(&window, (p, sz), (to_pos, target), 220, |_| {});
+                }
+                _ => {
+                    let _ = window.set_size(target);
+                }
+            }
             remember_mode(window.app_handle());
             Ok(())
         }
@@ -504,15 +791,25 @@ fn res_win(window: WebviewWindow, action: String) -> Result<bool, String> {
             let st = window.state::<AppState>();
             let prev = st.mini_prev.lock().unwrap().take();
             let _ = window.set_always_on_top(false);
-            let _ = window.set_min_size(Some(tauri::LogicalSize::new(960.0, 620.0)));
-            if let Some((p, sz, maxed)) = prev {
-                let _ = window.set_size(sz);
-                let _ = window.set_position(p);
-                if maxed {
-                    let _ = window.maximize();
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let (to_pos, to_size, maxed) = match prev {
+                Some((p, sz, maxed)) => (Some(p), sz, maxed),
+                None => (None, PhysicalSize::new((1320.0 * scale) as u32, (840.0 * scale) as u32), false),
+            };
+            let finish = move |w: &WebviewWindow| {
+                let _ = w.set_min_size(Some(tauri::LogicalSize::new(960.0, 620.0)));
+                if let Some(p) = to_pos { let _ = w.set_position(p); }
+                let _ = w.set_size(to_size);
+                if maxed { let _ = w.maximize(); }
+            };
+            let visible = window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false);
+            match (visible && !instant, window.outer_position(), window.inner_size()) {
+                (true, Ok(p), Ok(sz)) => {
+                    // grow from the mini player back to the normal window (min size applied at the end)
+                    let dest = to_pos.unwrap_or(PhysicalPosition::new(p.x + sz.width as i32 - to_size.width as i32, p.y));
+                    animate_window(&window, (p, sz), (dest, to_size), 240, finish);
                 }
-            } else {
-                let _ = window.set_size(tauri::LogicalSize::new(1320.0, 840.0));
+                _ => finish(&window),
             }
             remember_mode(window.app_handle());
             Ok(())
@@ -602,6 +899,7 @@ fn res_player_state(
 #[tauri::command]
 fn res_set_widget(app: AppHandle, state: tauri::State<'_, AppState>, value: bool) {
     *state.widget_enabled.lock().unwrap() = value;
+    sync_transitions(&app);
     if !value {
         destroy_window(&app, "widget");
     } else if app.get_webview_window("widget").is_none() {
@@ -966,8 +1264,24 @@ fn main() {
                     let st = window.state::<AppState>();
                     if *st.close_to_tray.lock().unwrap() {
                         api.prevent_close();
-                        let _ = window.hide();
-                        maybe_show_widget(app);
+                        if let Some(m) = main_window(app) {
+                            if dock(app, &m, true) {
+                                return; // shrinks into the taskbar player, then hides
+                            }
+                        }
+                        // minimize first so Windows plays its "into the taskbar" animation, then hide
+                        let _ = window.minimize();
+                        let w2 = window.clone();
+                        let a2 = app.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(Duration::from_millis(260));
+                            if w2.is_minimized().unwrap_or(false) {
+                                let _ = w2.hide();
+                            }
+                            maybe_show_widget(&a2);
+                            remember_mode(&a2);
+                            main_memory(&a2);
+                        });
                     }
                     remember_mode(app);
                     main_memory(app);
@@ -976,7 +1290,18 @@ fn main() {
                     if window.is_minimized().unwrap_or(false) {
                         maybe_show_widget(app);
                     } else if window.is_visible().unwrap_or(false) {
-                        hide_widget(app);
+                        // brought back from the taskbar icon after gliding into the taskbar player
+                        let back = {
+                            let mut d = DOCKED.lock().unwrap();
+                            if d.is_some() && !DOCKING.load(std::sync::atomic::Ordering::SeqCst) { d.take() } else { None }
+                        };
+                        if let Some(d) = back {
+                            if let Some(m) = main_window(app) {
+                                restore_min_size(&m, d.mini);
+                                let _ = m.eval("window.__resAppear && window.__resAppear()");
+                            }
+                        }
+                        hide_widget_soon(app);
                     }
                     remember_mode(app);
                     main_memory(app);

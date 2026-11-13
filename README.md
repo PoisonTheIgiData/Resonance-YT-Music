@@ -237,7 +237,7 @@ untick to add or remove, or create a new playlist.
 | Tab | What's there |
 |---|---|
 | **General** | Ad blocker · close to tray · start with Windows (and straight into the tray) · **Bluetooth & audio output** (+ pause on headphone disconnect, resume on reconnect, low-battery warning) · **song-change pop-up** (corner, also when in front) · song-change notifications · start page · offer to continue the last song |
-| **Appearance** | Theme (dark / light / system / **custom** with editor) · **interface size** · color scheme (song / profile picture / custom) · accent color · glow strength · corners · playlist covers |
+| **Appearance** | Theme (dark / light / system / **custom** with editor) · **interface size** · **animations** (page transitions, mini player and taskbar player) · color scheme (song / profile picture / custom) · accent color · glow strength · corners · playlist covers |
 | **Player bar** | Choose which buttons appear (shuffle, repeat, like, phone remote, cover/video, pop-out, full screen, sleep, full player, queue, volume) · time display |
 | **Taskbar** | Taskbar player on/off · layout editor |
 | **Playback** | Crossfade · volume leveling · **karaoke lyrics** · **visualizer** (where, style, strength) · Windows media controls · translate lyrics (+ language) · **romanize lyrics** · sleep-timer fade |

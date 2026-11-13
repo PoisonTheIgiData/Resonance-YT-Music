@@ -30,7 +30,7 @@
     pb_shuffle: true, pb_repeat: true, pb_like: true, pb_av: true, pb_full: true, pb_queue: true, pb_volume: true,
     timeMode: 'elapsed', startPage: 'home', showResume: true,
     pb_sleep: true, pb_pip: true, pb_fs: true, pb_remote: true, theme: 'dark', sleepFade: true, notify: false, lyrTranslate: false, lyrLang: 'en',
-    sb: { items: [] }, devices: true,
+    sb: { items: [] }, devices: true, pageAnim: true,
     vizStyle: 'bars', vizStrength: 35,
     autoPause: true, autoResume: false, lowBattery: true, eqPerOutput: false, eqByOut: {}, karaoke: 'auto', viz: 'off', uiScale: 1,
     overlay: false, overlayCorner: 'bottom-right', overlayAlways: false, lyrRoman: false, remote: false, lastVersion: '',
@@ -54,6 +54,8 @@
   if (IS_YTM) {
     invoke('res_set_close_to_tray', { value: !!S.closeToTray }).catch(() => {});
     invoke('res_set_widget', { value: !!S.taskbarWidget }).catch(() => {});
+    const sendAnim = () => invoke('res_win', { action: S.pageAnim !== false && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'anim:on' : 'anim:off' }).catch(() => {});
+    sendAnim(); window.__resSendAnim = sendAnim;
     invoke('res_set_overlay', { enabled: !!S.overlay, corner: S.overlayCorner || 'bottom-right', always: !!S.overlayAlways }).catch(() => {});
     sendLayout();
   }
@@ -412,6 +414,7 @@
 
     <aside class="sidebar auto main-only">
       <nav class="panel nav">
+        <span class="nav-ind" aria-hidden="true"></span>
         <button class="nav-item" data-nav="home">${ic('home')}<span>Home</span></button>
         <button class="nav-item" data-nav="explore">${ic('explore')}<span>Explore</span></button>
         <button class="nav-item" data-nav="library">${ic('library')}<span>Library</span></button>
@@ -557,6 +560,7 @@
               <div class="range-row"><input type="range" min="0" max="100" step="5" data-set="glow"><span class="le-val" id="glowV"></span></div></div>
             <div class="setting"><div><div class="s-title">Corners</div><div class="s-sub">Roundness of panels</div></div>
               <div class="seg" data-set="corners"><button data-v="sharp">Sharp</button><button data-v="normal">Normal</button><button data-v="round">Round</button></div></div>
+            <label class="setting"><div><div class="s-title">Animations</div><div class="s-sub">Pages slide when you switch between Home, Explore and Library; the window glides into and out of the mini player; the taskbar player rises into the taskbar</div></div><input type="checkbox" class="toggle" data-set="pageAnim"></label>
             <label class="setting"><div><div class="s-title">Playlist covers in the sidebar</div><div class="s-sub">Off shows colored letter tiles instead</div></div><input type="checkbox" class="toggle" data-set="plCovers"></label>
           </section>
           <section data-pane="player" hidden>
@@ -812,7 +816,8 @@
     </div></div>
 
     <button class="mini-x auto" id="miniX" title="Close mini player (music keeps playing)" hidden>${ic('close')}</button>
-    <div class="toast" id="toast" hidden></div>`);
+    <div class="toast" id="toast" hidden></div>
+    <div class="veil" id="veil" aria-hidden="true"></div>`);
 
     const R = () => window.__res;
     const cmd = (name, arg) => { try { R() && R().cmd(name, arg); } catch (e) {} setTimeout(poll, 120); };
@@ -904,7 +909,7 @@
     $$('#settingsModal [data-set]').forEach((el) => {
       const k = el.dataset.set;
       if (el.classList.contains('seg')) el.addEventListener('click', (e) => { const b = e.composedPath()[0].closest('button'); if (!b) return; S[k] = b.dataset.v; saveS(); applyPrefs(); syncSettings(); if (/^overlay/.test(k)) sendOverlay(); });
-      else if (el.type === 'checkbox') el.addEventListener('change', () => { S[k] = el.checked; saveS(); applyPrefs(); syncSettings(); if (k === 'lyrTranslate' || k === 'lyrRoman') { if (k === 'lyrTranslate' && !el.checked) lyr.trans = null; if (k === 'lyrRoman' && !el.checked) lyr.roman = null; drawLyrics(); fsDrawLyrics(); translateLyrics(); } if (/^overlay/.test(k)) sendOverlay(); });
+      else if (el.type === 'checkbox') el.addEventListener('change', () => { S[k] = el.checked; saveS(); applyPrefs(); syncSettings(); if (k === 'lyrTranslate' || k === 'lyrRoman') { if (k === 'lyrTranslate' && !el.checked) lyr.trans = null; if (k === 'lyrRoman' && !el.checked) lyr.roman = null; drawLyrics(); fsDrawLyrics(); translateLyrics(); } if (/^overlay/.test(k)) sendOverlay(); if (k === 'pageAnim' && window.__resSendAnim) window.__resSendAnim(); });
       else if (el.type === 'range') el.addEventListener('input', () => { S[k] = Number(el.value); saveS(); applyPrefs(); $('#glowV').textContent = S.glow + '%'; });
     });
     $('#swatches').addEventListener('click', (e) => { const b = e.composedPath()[0].closest('[data-c]'); if (!b) return; S.customColor = b.dataset.c; saveS(); applyPrefs(); syncSettings(); });
@@ -1146,7 +1151,7 @@
     $('#setTray').onchange = (e) => { S.closeToTray = e.target.checked; saveS(); invoke('res_set_close_to_tray', { value: S.closeToTray }).catch(() => {}); };
 
     // ---------- navigation ----------
-    $$('.nav-item').forEach((b) => (b.onclick = () => R() && R().nav(b.dataset.nav)));
+    $$('.nav-item').forEach((b) => (b.onclick = () => goSection(b.dataset.nav)));
     root.addEventListener('click', (e) => {
       const t = e.composedPath()[0];
       if (!t.closest || Date.now() - (window.__resDragEnd || 0) < 250) return;
@@ -1163,12 +1168,69 @@
       const path = u.pathname, list = u.searchParams.get('list') || '';
       const which = path === '/' ? 'home' : path.startsWith('/explore') ? 'explore' : path.startsWith('/library') ? 'library' : '';
       $$('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.nav === which));
+      moveNavInd(which);
       const browse = list ? 'VL' + list : path.startsWith('/browse/') ? path.slice(8) : '';
       $$('.pl-item').forEach((b) => b.classList.toggle('active', !!browse && b.dataset.browse === browse));
       const nav = window.navigation;
       $('#btnBack').disabled = nav && 'canGoBack' in nav ? !nav.canGoBack : false;
       $('#btnFwd').disabled = nav && 'canGoForward' in nav ? !nav.canGoForward : false;
     }
+
+    // ---------- page transitions (Home / Explore / Library and other pages) ----------
+    var navAnimT = 0, navInT = 0;
+    const SECTIONS = ['home', 'explore', 'library'];
+    const curSection = () => { const p = location.pathname; return p === '/' ? 'home' : p.startsWith('/explore') ? 'explore' : p.startsWith('/library') ? 'library' : ''; };
+    const animOn = () => S.pageAnim !== false && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    // dir: 1 = to a section further down the sidebar (content slides left), -1 = up (slides right), 0 = another page (fades)
+    function navDir(dir) {
+      const de = document.documentElement.style;
+      de.setProperty('--res-nav-out-x', dir * -26 + 'px');
+      de.setProperty('--res-nav-in-x', dir * 26 + 'px');
+      de.setProperty('--res-nav-in-y', dir ? '0px' : '12px');
+    }
+    function navOut(dir) {
+      if (!animOn()) return;
+      navDir(dir);
+      const de = document.documentElement;
+      de.classList.remove('res-nav-in'); de.classList.add('res-nav-out');
+      clearTimeout(navAnimT); navAnimT = setTimeout(navIn, 1600); // never leave the page hidden
+    }
+    function navIn() {
+      clearTimeout(navAnimT);
+      const de = document.documentElement;
+      de.classList.remove('res-nav-out', 'res-nav-in');
+      if (!animOn()) return;
+      void de.offsetWidth; // restart the animation
+      de.classList.add('res-nav-in');
+      clearTimeout(navInT); navInT = setTimeout(() => de.classList.remove('res-nav-in'), 520);
+    }
+    function goSection(name) {
+      const from = curSection();
+      if (from !== name) {
+        const a = SECTIONS.indexOf(from), b = SECTIONS.indexOf(name);
+        navOut(a >= 0 && b >= 0 ? Math.sign(b - a) : 0);
+        moveNavInd(name); // the sidebar highlight moves right away
+        $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.nav === name));
+      }
+      if (R()) R().nav(name);
+    }
+    // any page change (sidebar playlists, albums, artists, back / forward) fades the new page in
+    window.addEventListener('yt-navigate-finish', () => {
+      const out = document.documentElement.classList.contains('res-nav-out');
+      if (!out) { if (!animOn() || (state && state.playerPageOpen)) return; navDir(0); }
+      setTimeout(navIn, out ? 40 : 0);
+    });
+    function moveNavInd(which) {
+      const ind = $('.nav-ind'), item = which && $(`.nav-item[data-nav="${which}"]`);
+      if (!ind) return;
+      if (!item) { ind.classList.remove('on'); return; }
+      const first = !ind.classList.contains('on') || !ind.style.height;
+      ind.classList.toggle('instant', first);
+      ind.style.top = item.offsetTop + 'px';
+      ind.style.height = item.offsetHeight + 'px';
+      ind.classList.add('on');
+    }
+    window.addEventListener('resize', () => moveNavInd(curSection()));
 
     // ---------- search ----------
     const input = $('#searchInput');
@@ -1596,6 +1658,11 @@
       }
     }
 
+    // Only one small pop-up at a time (sleep timer, devices, phone remote).
+    function closePops(keep) {
+      for (const id of ['#sleepPop', '#devPop', '#remotePop']) { if (id !== keep) { const e = $(id); if (e) e.hidden = true; } }
+    }
+
     // ---------- sleep timer ----------
     let sleep = null; // { mode: 'min'|'end', until, key, origVol }
     const pop = $('#sleepPop');
@@ -1635,7 +1702,7 @@
       updateSleepUI();
       toast('Sleep timer: playback paused');
     }
-    $('#btnSleep').onclick = (e) => { e.stopPropagation(); if (pop.hidden) { updateSleepUI(); placePop($('#btnSleep')); } else pop.hidden = true; };
+    $('#btnSleep').onclick = (e) => { e.stopPropagation(); if (pop.hidden) { closeCtx(); closePops('#sleepPop'); updateSleepUI(); placePop($('#btnSleep')); } else pop.hidden = true; };
     pop.addEventListener('click', (e) => { const b = e.composedPath()[0].closest('[data-min]'); if (b) { setSleep(b.dataset.min); pop.hidden = true; } });
     $('#sleepOff').onclick = () => { setSleep(null); pop.hidden = true; toast('Sleep timer off'); };
     document.addEventListener('pointerdown', (e) => { if (!pop.hidden && !e.composedPath().includes(pop) && !e.composedPath().includes($('#btnSleep'))) pop.hidden = true; }, true);
@@ -1655,17 +1722,48 @@
 
     // ---------- mini mode (small always-on-top window) ----------
     let miniOn = false;
+    // A short fade over the whole window that hides the in-between frames of a mode switch.
+    let veilT = 0;
+    function veil(ms) {
+      const v = $('#veil');
+      const covered = v.classList.contains('cover');
+      v.classList.remove('cover');
+      if (!animOn()) { v.classList.remove('go', 'tinted'); return; }
+      if (!covered) v.classList.remove('tinted');
+      v.style.animationDuration = (ms || 320) + 'ms';
+      v.classList.remove('go'); void v.offsetWidth; v.classList.add('go');
+      clearTimeout(veilT); veilT = setTimeout(() => v.classList.remove('tinted'), (ms || 320) + 60);
+    }
+    window.__resAppear = () => veil(300);
+    // The window shrinking into / growing out of the taskbar player: cover it in the player's colours.
+    window.__resDock = (ms) => {
+      if (!animOn()) return;
+      const v = $('#veil');
+      clearTimeout(veilT);
+      v.classList.remove('go'); v.style.animationDuration = (ms || 0) + 'ms'; void v.offsetWidth;
+      v.classList.add('cover', 'tinted');
+    };
+    // safety net: never leave the window covered once it's back in front
+    window.addEventListener('focus', () => setTimeout(() => { if ($('#veil').classList.contains('cover') && !document.hidden) veil(300); }, 700));
     function setMini(on) {
+      if (on !== miniOn) veil(on ? 300 : 380);
+      if (on && animOn()) { const m = $('#mini'); m.classList.remove('enter'); void m.offsetWidth; m.classList.add('enter'); }
       miniOn = on;
       $('#miniDevP').hidden = true; $('#devPop').hidden = true; $('#remotePop').hidden = true;
       zoomHold = on;
       { const z = on ? 1 : Number(S.uiScale) || 1; if (z !== appliedZoom) { appliedZoom = z; invoke('res_win', { action: 'zoom:' + z }).catch(() => {}); } }
       $('#mini').hidden = !on;
       wrap.classList.toggle('mini-mode', on);
-      invoke('res_win', { action: on ? 'mini_on' : 'mini_off' }).catch(() => {});
+      invoke('res_win', { action: (on ? 'mini_on' : 'mini_off') + (animOn() ? '' : ':instant') }).catch(() => {});
       if (on) { closeMenu(); closeCtx(); pop.hidden = true; $$('.backdrop').forEach((m) => (m.hidden = true)); }
     }
     $('#btnMini').onclick = () => setMini(true);
+    // Dialogs (settings, stats, history…) don't fit the mini player: opening one returns to the full window.
+    const dlgWatch = new MutationObserver((list) => {
+      if (!miniOn) return;
+      if (list.some((m) => m.target.classList.contains('backdrop') && !m.target.hidden)) setMini(false);
+    });
+    $$('.backdrop').forEach((b) => dlgWatch.observe(b, { attributes: true, attributeFilter: ['hidden'] }));
     $('#miniExit').onclick = () => setMini(false);
     $('#miniClose').onclick = () => win('close');
     $('#miniPlay').onclick = () => $('#btnPlay').click();
@@ -2223,9 +2321,12 @@
       for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (q.bits[y * n + x] === '1') g.fillRect(Math.floor((x + quiet) * cell), Math.floor((y + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
     }
     let remoteUrl = '';
+    let remoteSeq = 0;
     async function applyRemote(renew) {
+      const my = ++remoteSeq;
       let r = null;
       try { r = await invoke('res_remote', { enabled: !!S.remote, renew: !!renew }); } catch (e) { r = { error: String(e) }; }
+      if (my !== remoteSeq) return r; // switched again meanwhile: only the latest answer counts
       $('#remoteBox').hidden = !(r && r.on);
       if (r && r.on) { remoteUrl = r.url; $('#remoteUrl').textContent = r.url; drawQr(r.qr); drawQr(r.qr, $('#rmpQr')); $('#rmpUrl').textContent = r.url; }
       else if (S.remote && r && r.error) { toast("Phone remote couldn't start: " + r.error, 5000); S.remote = false; saveS(); $('#setRemote').checked = false; }
@@ -2248,7 +2349,7 @@
       e.stopPropagation();
       const p = $('#remotePop');
       if (!p.hidden) { p.hidden = true; return; }
-      closeCtx(); $('#devPop').hidden = true;
+      closeCtx(); closePops('#remotePop');
       if (!S.remote) { S.remote = true; saveS(); }
       paintRemote(); p.hidden = false; placeRemotePop();
       await applyRemote(false);
@@ -2364,7 +2465,7 @@
     // ---------- custom context menus (sidebar, queue) ----------
     let ctxPick = null;
     function openCustomCtx(x, y, items, onPick) {
-      closeMenu();
+      closeMenu(); closePops();
       ctxPick = onPick;
       const ctx = $('#ctx');
       const withIcons = items.some((it) => it !== 'sep' && it[4]);
@@ -2765,7 +2866,7 @@
       ['sleep', 'Sleep timer …  (>sleep 30, >sleep end, >sleep off)', (a) => { a = String(a || '').trim(); if (a === 'off') setSleep(null); else if (a === 'end') setSleep('end'); else if (parseInt(a, 10) > 0) setSleep(parseInt(a, 10)); else { updateSleepUI(); placePop($('#btnSleep')); } }],
       ['mini', 'Mini player', () => setMini(true)], ['fullscreen', 'Full-screen view', () => setFs(true)], ['lyrics', 'Show lyrics', () => { setNp(true); setNpTab('lyrics'); }],
       ['queue', 'Show queue', () => { setNp(true); setNpTab('queue'); }], ['pip', 'Pop-out video', () => $('#btnPip').click()],
-      ['home', 'Go to Home', () => R() && R().nav('home')], ['explore', 'Go to Explore', () => R() && R().nav('explore')], ['library', 'Go to Library', () => R() && R().nav('library')], ['liked', 'Go to Liked Music', () => R() && R().nav({ browseId: 'VLLM' })],
+      ['home', 'Go to Home', () => goSection('home')], ['explore', 'Go to Explore', () => goSection('explore')], ['library', 'Go to Library', () => goSection('library')], ['liked', 'Go to Liked Music', () => R() && R().nav({ browseId: 'VLLM' })],
       ['history', 'Listening history', () => openHistory()], ['stats', 'Listening stats', () => openStats()], ['recap', 'Your year in music', () => openRecap()],
       ['settings', 'Settings', () => openSettings('general')], ['appearance', 'Appearance settings', () => openSettings('appearance')], ['equalizer', 'Equalizer', () => openSettings('eq')],
       ['shortcuts', 'Keyboard shortcuts settings', () => openSettings('shortcuts')], ['health', 'Health check', () => { openSettings('health'); runHealth(); }],
@@ -2830,7 +2931,7 @@
     const ctx = $('#ctx');
     function closeCtx() { ctx.hidden = true; }
     function openCtx(x, y, target) {
-      closeMenu();
+      closeMenu(); closePops();
       const s = state || {};
       const has = !!s.hasTrack;
       const sel = String(window.getSelection ? window.getSelection() : '').trim();
@@ -3101,7 +3202,7 @@
     function openDevPop() {
       const p = $('#devPop');
       if (!p.hidden) { p.hidden = true; return; }
-      closeCtx(); pop.hidden = true;
+      closeCtx(); closePops('#devPop');
       setHTML($('#devPopBody'), devPanelHTML());
       p.hidden = false;
       const r = $('#btnDev').getBoundingClientRect(), pr = p.getBoundingClientRect();

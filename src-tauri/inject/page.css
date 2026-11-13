@@ -126,3 +126,16 @@ ytmusic-tab-renderer.res-synced > :not(#res-page-lyrics) { display: none !import
 /* karaoke word fill in the full player's lyrics */
 #res-page-lyrics .res-ply.on .res-kw { color: transparent; background: linear-gradient(90deg, #fff var(--k, 0%), rgba(255,255,255,.42) var(--k, 0%)); -webkit-background-clip: text; background-clip: text; }
 #res-page-lyrics .res-ply-rm { display: block; font-size: .6em; font-weight: 600; opacity: .78; margin-top: 2px; letter-spacing: 0; }
+
+/* ---------- page transitions (set by Resonance when you change page) ---------- */
+html.res-nav-out ytmusic-app-layout > #content, html.res-nav-out #content.ytmusic-app {
+  opacity: 0 !important; transform: translate(var(--res-nav-out-x, 0), 0);
+  transition: opacity .14s ease-in, transform .14s ease-in;
+}
+html.res-nav-in ytmusic-app-layout > #content, html.res-nav-in #content.ytmusic-app {
+  animation: resNavIn .42s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes resNavIn {
+  from { opacity: 0; transform: translate(var(--res-nav-in-x, 0), var(--res-nav-in-y, 12px)); }
+  to { opacity: 1; transform: none; }
+}

@@ -385,7 +385,7 @@ label.setting > .s-title { flex: 1; }
 .hide-pb-sleep #btnSleep { display: none !important; }
 
 /* ---------- mini mode ---------- */
-.mini-mode > :not(#mini):not(.toast):not(.ctx) { visibility: hidden !important; }
+.mini-mode > :not(#mini):not(.toast):not(.ctx):not(.veil) { visibility: hidden !important; }
 .mini { position: fixed; inset: 0; z-index: 95; overflow: hidden; background: #101014; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 12px 14px 14px; cursor: default; }
 .mini-bg { position: absolute; inset: -40px; background: center/cover no-repeat; filter: blur(34px) saturate(1.5) brightness(.42); opacity: .95; }
 .mini > :not(.mini-bg) { position: relative; }
@@ -476,7 +476,7 @@ label.setting > .s-title { flex: 1; }
 .light .mini { background: #101014; color: #fff; }
 
 /* ---------- full-screen view ---------- */
-.fs-mode > :not(#fsv):not(.toast):not(.ctx):not(.backdrop) { visibility: hidden !important; }
+.fs-mode > :not(#fsv):not(.toast):not(.ctx):not(.backdrop):not(.veil) { visibility: hidden !important; }
 .fsv { position: fixed; inset: 0; z-index: 96; overflow: hidden; background: #0b0b0f; color: #fff; display: flex; flex-direction: column; }
 .fsv-bg { position: absolute; inset: -80px; background: center/cover no-repeat; filter: blur(70px) saturate(1.6) brightness(.5); transform: scale(1.1); animation: fsdrift 30s ease-in-out infinite alternate; }
 @keyframes fsdrift { 0% { transform: scale(1.1) translate(0, 0); } 100% { transform: scale(1.25) translate(-3%, 2%); } }
@@ -795,3 +795,29 @@ select.sel { height: 32px; padding: 0 8px; color: var(--text); }
 .rmp-url { text-align: center; font-size: 11px; }
 .rmp-btns { justify-content: center; }
 .rm-pop .remote-note { text-align: center; }
+
+/* ---------- sidebar: a highlight that slides between Home / Explore / Library ---------- */
+.nav { position: relative; }
+.nav-item { position: relative; z-index: 1; }
+.nav-item.active { background: transparent; }
+.nav-ind { position: absolute; left: 8px; right: 8px; top: 8px; height: 44px; border-radius: 8px; background: rgba(255,255,255,.07); opacity: 0; pointer-events: none;
+  transition: top .38s cubic-bezier(.3,1.3,.5,1), height .3s var(--ease), opacity .2s; }
+.nav-ind.on { opacity: 1; }
+.nav-ind.instant { transition: opacity .2s; }
+.nav-item.active svg { transition: color .25s; }
+.light .nav-ind { background: rgba(0,0,0,.06); }
+@media (prefers-reduced-motion: reduce) { .nav-ind { transition: opacity .2s; } }
+
+/* ---------- window mode transitions ---------- */
+.veil { position: fixed; inset: 0; z-index: 400; pointer-events: none; background: var(--bg); opacity: 0; }
+.veil.go { animation: veilOut 320ms ease-out both; }
+@keyframes veilOut { from { opacity: 1; } to { opacity: 0; } }
+/* shrinking into / growing out of the taskbar player: the window takes on the player's colours */
+.veil.tinted { background: linear-gradient(105deg, rgba(var(--tint), .55), #16161c 62%), #16161c; }
+.veil.cover { opacity: 1; animation: veilIn 150ms ease-out both; }
+@keyframes veilIn { from { opacity: 0; } to { opacity: 1; } }
+.mini.enter { animation: miniIn .42s var(--ease) both; }
+.mini.enter .mini-art { animation: miniArtIn .5s var(--ease) both; }
+@keyframes miniIn { from { opacity: 0; transform: scale(.94); } }
+@keyframes miniArtIn { from { opacity: 0; transform: translateX(-10px) scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .veil.go, .mini.enter, .mini.enter .mini-art { animation: none; } }

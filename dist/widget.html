@@ -55,6 +55,15 @@
   .batt.low i { background: #ff5d5d; }
   .batt-t { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; min-width: 32px; text-align: right; }
   .batt.low + .batt-t { color: #ff5d5d; }
+  /* rising into the taskbar / sinking out of it */
+  body.rise #root, body.rise #bubble { animation: wRise .38s cubic-bezier(.2,.9,.25,1.15) both; }
+  body.rise #bubble { animation-delay: .06s; }
+  body.sink #root, body.sink #bubble { animation: wSink .16s ease-in both; }
+  body.pop #root, body.pop #bubble { animation: wPop .18s ease-out both; }
+  @keyframes wPop { from { opacity: .55; } }
+  @keyframes wRise { from { opacity: 0; transform: translateY(70%) scale(.96); } }
+  @keyframes wSink { to { opacity: 0; transform: translateY(60%) scale(.97); } }
+  @media (prefers-reduced-motion: reduce) { body.rise #root, body.rise #bubble, body.pop #root, body.pop #bubble, body.sink #root, body.sink #bubble { animation: none; } }
 </style>
 <script src="widget-render.js"></script>
 </head>
@@ -224,6 +233,20 @@
     inst.marquee();
   };
   window.resPanel = (open) => { if (!open) closePanel(false); };
+  let animT = 0;
+  // "rise": up into the taskbar; "pop": in place (the main window has just shrunk into this spot)
+  window.resShow = (how) => {
+    const c = how === 'pop' ? 'pop' : 'rise';
+    document.body.classList.remove('sink', 'rise', 'pop'); void document.body.offsetWidth;
+    document.body.classList.add(c);
+    clearTimeout(animT); animT = setTimeout(() => document.body.classList.remove(c), 600);
+  };
+  window.resHideAnim = () => {
+    document.body.classList.remove('rise', 'pop'); void document.body.offsetWidth;
+    document.body.classList.add('sink');
+    // the window is hidden right after; be ready to rise next time
+    clearTimeout(animT); animT = setTimeout(() => document.body.classList.remove('sink'), 400);
+  };
   window.resDev = (st) => {
     if (st && busy && (st.bt === want || st.error || Date.now() - busyAt > 5000)) busy = '';
     dev = st || null;

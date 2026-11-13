@@ -125,8 +125,16 @@ fn start(app: &AppHandle) -> Result<u16, String> {
         return Ok(*r.port.lock().unwrap());
     }
     let mut listener = None;
-    for port in 48720..=48730u16 {
-        if let Ok(l) = TcpListener::bind(("0.0.0.0", port)) { listener = Some((l, port)); break; }
+    // keep the usual port if possible (a just-stopped remote may need a moment to let go of it),
+    // so the QR code / bookmark stays the same
+    for _ in 0..4 {
+        if let Ok(l) = TcpListener::bind(("0.0.0.0", 48720u16)) { listener = Some((l, 48720u16)); break; }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    if listener.is_none() {
+        for port in 48721..=48730u16 {
+            if let Ok(l) = TcpListener::bind(("0.0.0.0", port)) { listener = Some((l, port)); break; }
+        }
     }
     let (l, port) = listener.ok_or("No free network port (48720–48730) — another app is using them")?;
     l.set_nonblocking(true).map_err(|e| e.to_string())?;
@@ -157,7 +165,7 @@ fn stop(app: &AppHandle) {
 
 /// Turn the phone remote on/off (renew = make a new secret link). Returns { url, qr } or { error }.
 #[tauri::command]
-pub fn res_remote(app: AppHandle, enabled: bool, renew: Option<bool>) -> Value {
+pub async fn res_remote(app: AppHandle, enabled: bool, renew: Option<bool>) -> Value {
     if !enabled {
         stop(&app);
         return json!({ "on": false });
