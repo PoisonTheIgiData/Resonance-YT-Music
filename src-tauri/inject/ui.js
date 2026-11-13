@@ -1912,7 +1912,7 @@
     $('#upInstall').onclick = async () => {
       if (!upInfo || !upInfo.assetUrl) return;
       $('#upInstall').disabled = true;
-      $('#upStatus').textContent = `Downloading ${upInfo.assetName} from GitHub… Resonance will close and the installer will open.`;
+      $('#upStatus').textContent = `Downloading ${upInfo.assetName} from GitHub… Resonance will close, update itself and open again in a few seconds.`;
       try { await invoke('res_install_update', { url: upInfo.assetUrl }); }
       catch (e) { $('#upStatus').textContent = 'Update failed: ' + (e && e.message ? e.message : String(e)); $('#upInstall').disabled = false; }
     };
@@ -2398,8 +2398,11 @@
       $('#wnModal').hidden = false;
       let r = null;
       try { r = await invoke('res_release_notes', { repo: UPDATE_REPO, version: v || null }); } catch (e) { r = null; }
-      if (r && r.body) {
-        setHTML($('#wnBody'), mdToHtml(r.body));
+      // the release page ends with download instructions for new users ("---" then "Download … setup.exe");
+      // they don't belong in the app, which is already installed
+      const notes = r && r.body ? String(r.body).replace(/\r/g, '').replace(/\n-{3,}\s*\n(?=[\s\S]*setup\.exe)[\s\S]*$/i, '').replace(/^-{3,}\s*\n(?=[\s\S]*setup\.exe)[\s\S]*$/i, '').trim() : '';
+      if (notes) {
+        setHTML($('#wnBody'), mdToHtml(notes));
         if (r.page) { $('#wnGh').hidden = false; $('#wnGh').onclick = () => invoke('res_open_url', { url: r.page }).catch(() => {}); }
       } else {
         setHTML($('#wnBody'), '<p>This version has no release notes on GitHub (or GitHub couldn’t be reached).</p>');

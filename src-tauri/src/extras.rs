@@ -179,7 +179,9 @@ pub async fn res_install_update(app: AppHandle, url: String) -> Result<(), Strin
     })
     .await
     .map_err(|e| e.to_string())??;
-    std::process::Command::new(&path).spawn().map_err(|e| e.to_string())?;
+    // /P: just a progress bar, no questions; /UPDATE: install over the current version (no
+    // "uninstall first?" page, keeps shortcuts as they are); /R: start Resonance again afterwards
+    std::process::Command::new(&path).args(["/P", "/UPDATE", "/R"]).spawn().map_err(|e| e.to_string())?;
     let handle = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(600));

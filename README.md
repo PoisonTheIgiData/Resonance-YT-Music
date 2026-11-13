@@ -341,14 +341,18 @@ or start from Midnight, Forest, Wine, Ember or Mono. **Save as theme…** keeps 
 Updates are **off by default**. When on, Resonance checks **only GitHub, and only this repository's latest release**
 (`PoisonTheIgiData/Ressonance-YT-Music`). It compares that release's version number with the installed one. No other server is involved.
 In Resonance: **Settings → Updates → Check for updates**, or turn on automatic checks (once a day at start-up).
-**Install update** downloads the installer attached to that GitHub release (nothing else is accepted) and runs it.
+**Install update** downloads the installer attached to that GitHub release (nothing else is accepted) and installs it
+over the current version: a short progress bar, no setup questions, and Resonance opens again by itself. Your settings stay.
 After updating, the **What's new** card shows that release's notes.
 
 **Publishing a new version (maintainers)**
 
-The easy way: double-click **`Publish-to-GitHub.bat`** (kept next to the repository folder, not inside it). It uploads
-your changes, asks for the version number (Enter accepts the suggested next one), writes the release notes from the
-change descriptions, and starts the release.
+The easy way, with two files kept next to the repository folder (not inside it):
+
+- **`Publish-Code.bat`** uploads your changes to GitHub. No release, no installer.
+- **`Publish-Release.bat`** uploads any changes, asks for the version number (Enter accepts the suggested next one),
+  writes the release notes from the change descriptions, and starts the release. The installer appears on the
+  Releases page about 10–15 minutes later.
 
 By hand:
 
