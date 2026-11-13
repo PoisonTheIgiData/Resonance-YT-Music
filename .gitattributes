@@ -1,0 +1,5 @@
+# Keep line endings consistent: LF in the repository, CRLF for Windows batch files.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.ico binary
