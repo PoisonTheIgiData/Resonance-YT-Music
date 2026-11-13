@@ -2,6 +2,12 @@
 
 **A desktop player for YouTube Music on Windows: a Spotify-style app built on Tauri 2 and Windows' built-in WebView2.**
 
+[![Latest release](https://img.shields.io/github/v/release/PoisonTheIgiData/Ressonance-YT-Music?label=download&sort=semver)](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/releases/latest)
+[![Check](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/actions/workflows/check.yml/badge.svg)](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/actions/workflows/check.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+**[⬇ Download the latest installer](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/releases/latest)** (`Resonance_<version>_x64-setup.exe`)
+
 Resonance opens the real YouTube Music website (music.youtube.com) and wraps it in its own interface: a sidebar,
 player bar, now-playing panel, lyrics, a taskbar player, a mini player and much more. Your library, playlists,
 likes and recommendations are YouTube Music's own, because you sign in with your normal Google account.
@@ -14,6 +20,7 @@ likes and recommendations are YouTube Music's own, because you sign in with your
 ## Contents
 
 - [Features](#features)
+- [Download and install](#download-and-install)
 - [Requirements](#requirements)
 - [Building and installing](#building-and-installing)
 - [First start](#first-start)
@@ -84,8 +91,19 @@ likes and recommendations are YouTube Music's own, because you sign in with your
 - Backup and restore of all settings
 
 **Maintenance**
-- Optional update checks against **your own GitHub repository** (off by default), a "What's new" card after updates
+- Optional update checks against **this GitHub repository's releases** (off by default), a "What's new" card after updates
 - **Health check** that tests every connection to YouTube Music, plus a *Recent problems* log you can copy
+
+---
+
+## Download and install
+
+1. Go to **[Releases](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/releases/latest)** and download `Resonance_<version>_x64-setup.exe`.
+2. Run it. Windows SmartScreen may say *"Windows protected your PC"* because the installer isn't code-signed:
+   click **More info → Run anyway**.
+3. Resonance installs for your user only (no administrator rights needed) and adds a Start-menu entry.
+
+Updating: install a newer version over the old one, or let Resonance check for you (Settings → Updates).
 
 ---
 
@@ -99,15 +117,17 @@ likes and recommendations are YouTube Music's own, because you sign in with your
 
 ---
 
-## Building and installing
+## Building from source
 
 1. Install **Rust** from https://rustup.rs (accept the defaults; it also installs the Microsoft C++ build tools
    if they're missing) and **Node.js LTS** from https://nodejs.org.
-2. Double-click **`Build.bat`**.
+2. Get the code: `git clone https://github.com/PoisonTheIgiData/Ressonance-YT-Music.git`, or use
+   *Code → Download ZIP* on GitHub and unzip it.
+3. Double-click **`Build.bat`**.
    - The first build downloads and compiles everything and takes several minutes. Later builds are much faster.
    - The app: `src-tauri\target\release\resonance.exe`
    - The installer: `src-tauri\target\release\bundle\nsis\Resonance_<version>_x64-setup.exe`
-3. Run the installer (or the `.exe` directly).
+4. Run the installer (or the `.exe` directly).
 
 If the installer step fails, it's usually because the build couldn't download NSIS (the installer maker) from
 github.com. The app itself is still built and usable.
@@ -224,7 +244,7 @@ untick to add or remove, or create a new playlist.
 | **Equalizer** | 10 bands, presets, **remember per audio output** |
 | **Shortcuts** | Global hotkeys |
 | **Connections** | **Phone remote** (QR code, link) · Discord status |
-| **Updates** | What's new · GitHub repository · automatic checks · check / install |
+| **Updates** | What's new · link to the releases · automatic checks · check / install |
 | **Backup & stats** | Export / import settings · listening stats |
 | **Health check** | Connection tests · **Recent problems** (copy / clear) |
 | **Account** | Profile picture in Resonance (custom or YouTube's) · sign out |
@@ -318,21 +338,24 @@ or start from Midnight, Forest, Wine, Ember or Mono. **Save as theme…** keeps 
 
 ## Updates and releases
 
-Updates are **off by default**. When on, Resonance checks **only GitHub, and only your repository's latest release**.
-It compares that release's version number with the installed one. No other server is involved.
+Updates are **off by default**. When on, Resonance checks **only GitHub, and only this repository's latest release**
+(`PoisonTheIgiData/Ressonance-YT-Music`). It compares that release's version number with the installed one. No other server is involved.
+In Resonance: **Settings → Updates → Check for updates**, or turn on automatic checks (once a day at start-up).
+**Install update** downloads the installer attached to that GitHub release (nothing else is accepted) and runs it.
+After updating, the **What's new** card shows that release's notes.
 
-1. Create a GitHub repository (e.g. `your-name/resonance`) and push this folder to it.
-2. To publish a version: raise `version` in `src-tauri/tauri.conf.json` **and** `src-tauri/Cargo.toml`, commit, then
-   tag it with the same number:
+**Publishing a new version (maintainers)**
+
+1. Raise `version` in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json` (same number everywhere), and commit.
+2. Tag it with the same number and push the tag:
    ```
    git tag v1.1.0
-   git push --tags
+   git push origin v1.1.0
    ```
-   The included GitHub Actions workflow (`.github/workflows/release.yml`) builds the installer and publishes the release.
-   Write the release notes in the GitHub release; Resonance shows them in its **What's new** card.
-3. In Resonance: **Settings → Updates**, enter `your-name/resonance`, then **Check for updates** or turn on
-   automatic checks (once a day at start-up). **Install update** downloads the installer from that same GitHub
-   release (only github.com addresses are accepted) and runs it.
+3. The **Release** workflow (`.github/workflows/release.yml`) builds the installer on GitHub and publishes the release
+   with it attached. Edit the release on GitHub to write the notes. They become the in-app *What's new* text.
+
+Forks: change `UPDATE_REPO` in `src-tauri/src/extras.rs` and `src-tauri/inject/ui.js` to point a build at another repository.
 
 ---
 
@@ -366,7 +389,7 @@ Discord must be running on the same PC. Nothing is shown while music is paused.
 | music.youtube.com, Google sign-in pages | Always | The music itself |
 | lrclib.net | When lyrics are needed | Lyrics |
 | translate.googleapis.com | Only if translation or romanization is on | Translating and romanizing lyrics |
-| api.github.com / github.com | Only if you set a repository and check for updates | Updates, release notes |
+| api.github.com / github.com | Only when checking for updates or showing What's new | Updates, release notes (this repository only) |
 | Discord (local, on your PC) | Only if Discord status is on | "Listening to…" status |
 | Your phone (local network) | Only while the phone remote is on | Remote control |
 
@@ -414,12 +437,15 @@ No analytics or telemetry, and no other servers.
 
 ```
 Build.bat / Run-Dev.bat        build the installer / run a development build
-package.json                   Tauri CLI
+package.json, package-lock.json  Tauri CLI
+LICENSE                        Apache License 2.0
 dist/
   widget.html, widget-render.js  taskbar player (+ Bluetooth bubble); renderer shared with the layout editor
   overlay.html                 song-change pop-up
 docs/CODE-SIGNING.md           code-signing options
-.github/workflows/release.yml  builds and publishes a release when you push a version tag
+.github/workflows/release.yml  builds and publishes a release when a version tag is pushed
+.github/workflows/check.yml    compiles the app on every push / pull request
+.github/ISSUE_TEMPLATE/        bug report and feature request forms
 src-tauri/
   tauri.conf.json, Cargo.toml  app config and Rust dependencies
   build.rs                     list of commands the page may call
@@ -478,7 +504,14 @@ src-tauri/
   [windows-rs](https://github.com/microsoft/windows-rs), [webview2-com](https://crates.io/crates/webview2-com)
 - Icons in the style of Google's Material Symbols
 
-**License:** none is included yet. 
+## License
+
+Licensed under the **Apache License 2.0**; see [LICENSE](LICENSE).
+
+## Contributing
+
+Bug reports and ideas are welcome in [Issues](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/issues). For bugs, please include the
+**Health check** report and **Recent problems** (Settings → Health check → *Copy report* / *Copy errors*).
 
 Resonance is not affiliated with, endorsed by or sponsored by Google, YouTube or Discord. YouTube Music is a
 trademark of Google LLC.

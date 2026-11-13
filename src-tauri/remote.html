@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07070a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Resonance remote</title>
+<style>
+  :root { --tint: 124, 58, 237; --accent: #ff486c; color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #07070a; color: #f4f4f7; font: 15px/1.4 "Segoe UI", -apple-system, system-ui, Roboto, sans-serif; overflow: hidden; }
+  .bg { position: fixed; inset: -60px; background: center/cover no-repeat; filter: blur(50px) saturate(1.5) brightness(.45); transform: scale(1.1); transition: background-image .6s; }
+  .shade { position: fixed; inset: 0; background: linear-gradient(180deg, rgba(var(--tint), .35), rgba(7,7,10,.85) 55%, #07070a); transition: background .8s; }
+  main { position: relative; height: 100%; display: flex; flex-direction: column; padding: max(18px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); gap: 18px; max-width: 520px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 14px; opacity: .9; }
+  header svg { width: 22px; height: 22px; }
+  header .st { margin-left: auto; font-weight: 600; font-size: 12px; color: rgba(255,255,255,.6); display: flex; align-items: center; gap: 6px; }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+  header .dot.off { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+  .art { width: 100%; aspect-ratio: 1; border-radius: 16px; background: #1b1b22 center/cover no-repeat; box-shadow: 0 24px 60px rgba(0,0,0,.55); flex: none; max-height: 46vh; max-width: 46vh; align-self: center; }
+  .meta { min-width: 0; }
+  .t { font-size: 22px; font-weight: 800; letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .a { color: rgba(255,255,255,.7); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .meta-row { justify-content: space-between; }
+  .bar { position: relative; height: 26px; display: flex; align-items: center; touch-action: none; }
+  .bar .tr { position: absolute; left: 0; right: 0; height: 5px; border-radius: 99px; background: rgba(255,255,255,.2); overflow: hidden; }
+  .bar .fi { height: 100%; width: 0; background: #fff; border-radius: 99px; }
+  .times { display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,.6); margin-top: -6px; font-variant-numeric: tabular-nums; }
+  .ctrl { justify-content: space-between; padding: 0 4px; }
+  button { border: 0; background: none; color: inherit; padding: 0; display: grid; place-items: center; cursor: pointer; border-radius: 50%; width: 52px; height: 52px; transition: transform .1s, background .15s; }
+  button:active { transform: scale(.9); background: rgba(255,255,255,.08); }
+  button svg { width: 28px; height: 28px; fill: currentColor; }
+  .play { width: 74px; height: 74px; background: #fff; color: #111; }
+  .play:active { background: #fff; }
+  .play svg { width: 34px; height: 34px; }
+  .sm svg { width: 24px; height: 24px; }
+  .on { color: var(--accent); }
+  .vol { gap: 12px; }
+  .vol svg { width: 22px; height: 22px; fill: rgba(255,255,255,.7); flex: none; }
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 5px; border-radius: 99px; background: linear-gradient(90deg, #fff var(--p, 50%), rgba(255,255,255,.2) var(--p, 50%)); outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .msg { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: rgba(30,30,38,.95); padding: 10px 16px; border-radius: 12px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .msg.show { opacity: 1; }
+  .spacer { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="bg" id="bg"></div><div class="shade"></div>
+<main>
+  <header>
+    <svg viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff486c"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#g)"/><path d="M20 18.5v27L41 32z" fill="#fff"/><path d="M44 22.5a14 14 0 0 1 0 19" stroke="#fff" stroke-width="3.6" fill="none" stroke-linecap="round"/></svg>
+    Resonance <span class="st"><span class="dot" id="dot"></span><span id="stx">Connected</span></span>
+  </header>
+  <div class="spacer"></div>
+  <div class="art" id="art"></div>
+  <div class="row meta-row">
+    <div class="meta"><div class="t" id="t">Nothing playing</div><div class="a" id="a"></div></div>
+    <button class="sm" id="like" aria-label="Like"><svg viewBox="0 0 24 24"><path id="likeP" d=""/></svg></button>
+  </div>
+  <div>
+    <div class="bar" id="bar"><div class="tr"><div class="fi" id="fi"></div></div></div>
+    <div class="times"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+  </div>
+  <div class="row ctrl">
+    <button class="sm" id="shuffle" aria-label="Shuffle"><svg viewBox="0 0 24 24"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
+    <button id="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M18.5 6.6v10.8a1 1 0 0 1-1.55.83l-7.6-5.4a1 1 0 0 1 0-1.66l7.6-5.4a1 1 0 0 1 1.55.83zM5.5 6h2v12h-2z"/></svg></button>
+    <button class="play" id="play" aria-label="Play / pause"><svg viewBox="0 0 24 24"><path id="playP" d=""/></svg></button>
+    <button id="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M5.5 6.6v10.8a1 1 0 0 0 1.55.83l7.6-5.4a1 1 0 0 0 0-1.66l-7.6-5.4a1 1 0 0 0-1.55.83zM16.5 6h2v12h-2z"/></svg></button>
+    <span style="width:52px"></span>
+  </div>
+  <div class="row vol">
+    <svg viewBox="0 0 24 24"><path d="M18.5 12A4.5 4.5 0 0 0 16 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>
+    <input type="range" id="vol" min="0" max="100" step="1" value="50" aria-label="Volume">
+    <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+  </div>
+</main>
+<div class="msg" id="msg"></div>
+<script>
+  const base = location.pathname.replace(/\/$/, '');
+  const $ = (id) => document.getElementById(id);
+  const P = {
+    play: 'M8 5.14v13.72a1 1 0 0 0 1.52.85l10.5-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z',
+    pause: 'M7.2 5h2.6A1.2 1.2 0 0 1 11 6.2v11.6a1.2 1.2 0 0 1-1.2 1.2H7.2A1.2 1.2 0 0 1 6 17.8V6.2A1.2 1.2 0 0 1 7.2 5zm7 0h2.6A1.2 1.2 0 0 1 18 6.2v11.6a1.2 1.2 0 0 1-1.2 1.2h-2.6a1.2 1.2 0 0 1-1.2-1.2V6.2A1.2 1.2 0 0 1 14.2 5z',
+    heart: 'M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z',
+    heartFill: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
+  };
+  const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  let st = {}, at = performance.now(), volBusy = 0, fails = 0, lastArt = '';
+  let msgT;
+  const msg = (m) => { const e = $('msg'); e.textContent = m; e.classList.add('show'); clearTimeout(msgT); msgT = setTimeout(() => e.classList.remove('show'), 1800); };
+  const cmd = (c, q) => fetch(base + '/cmd/' + c + (q ? '?' + q : ''), { method: 'POST' }).then((r) => { if (!r.ok) throw 0; setTimeout(poll, 250); }).catch(() => msg("Couldn't reach Resonance"));
+  function render() {
+    $('t').textContent = st.title || 'Nothing playing';
+    $('a').textContent = st.artist || '';
+    $('playP').setAttribute('d', st.playing ? P.pause : P.play);
+    const liked = st.like === 'LIKE';
+    $('likeP').setAttribute('d', liked ? P.heartFill : P.heart);
+    $('like').classList.toggle('on', liked);
+    $('shuffle').classList.toggle('on', !!st.shuffle);
+    if ((st.art || '') !== lastArt) { lastArt = st.art || ''; const u = lastArt ? 'url("' + lastArt.replace(/"/g, '%22') + '")' : 'none'; $('art').style.backgroundImage = u; $('bg').style.backgroundImage = u; }
+    if (Array.isArray(st.tint)) document.documentElement.style.setProperty('--tint', st.tint.join(','));
+    $('dur').textContent = fmt(st.duration);
+    if (st.volume != null && Date.now() > volBusy) { $('vol').value = st.volume; $('vol').style.setProperty('--p', st.volume + '%'); }
+    document.title = st.title ? st.title + ' · Resonance' : 'Resonance remote';
+  }
+  function tick() {
+    const t = (st.time || 0) + (st.playing ? (performance.now() - at) / 1000 : 0);
+    const d = st.duration || 0;
+    $('fi').style.width = (d ? Math.min(100, (t / d) * 100) : 0) + '%';
+    $('cur').textContent = fmt(Math.min(t, d || t));
+    requestAnimationFrame(tick);
+  }
+  async function poll() {
+    try {
+      const r = await fetch(base + '/state', { cache: 'no-store' });
+      if (!r.ok) throw 0;
+      st = await r.json(); at = performance.now(); fails = 0;
+      $('dot').classList.remove('off'); $('stx').textContent = 'Connected';
+      render();
+    } catch (e) {
+      if (++fails > 2) { $('dot').classList.add('off'); $('stx').textContent = 'Not connected'; }
+    }
+  }
+  $('play').onclick = () => { st.playing = !st.playing; render(); cmd('toggle'); };
+  $('next').onclick = () => cmd('next');
+  $('prev').onclick = () => cmd('prev');
+  $('like').onclick = () => { st.like = st.like === 'LIKE' ? 'INDIFFERENT' : 'LIKE'; render(); cmd('like'); };
+  $('shuffle').onclick = () => { st.shuffle = !st.shuffle; render(); cmd('shuffle'); };
+  let volT;
+  $('vol').addEventListener('input', (e) => {
+    const v = e.target.value; e.target.style.setProperty('--p', v + '%'); volBusy = Date.now() + 2000;
+    clearTimeout(volT); volT = setTimeout(() => cmd('vol', 'v=' + v), 90);
+  });
+  $('bar').addEventListener('click', (e) => {
+    const r = $('bar').getBoundingClientRect(); const f = (e.clientX - r.left) / r.width;
+    if (st.duration) { st.time = f * st.duration; at = performance.now(); cmd('seek', 'f=' + f.toFixed(4)); }
+  });
+  poll(); setInterval(poll, 1500); requestAnimationFrame(tick);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+</script>
+</body>
+</html>

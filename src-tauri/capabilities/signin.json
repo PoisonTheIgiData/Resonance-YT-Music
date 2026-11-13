@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "signin",
+  "description": "Google sign-in / consent pages only get window controls (title bar buttons).",
+  "windows": ["main"],
+  "remote": {
+    "urls": [
+      "https://accounts.google.com", "https://accounts.google.com/*",
+      "https://consent.youtube.com", "https://consent.youtube.com/*",
+      "https://consent.google.com", "https://consent.google.com/*",
+      "https://www.youtube.com", "https://www.youtube.com/*"
+    ]
+  },
+  "permissions": ["allow-res-win"]
+}

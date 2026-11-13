@@ -1,0 +1,45 @@
+# Builds Resonance and publishes a GitHub release when a version tag is pushed (e.g. v1.1.0).
+# Resonance's "Updates" setting compares the newest release here with the installed version.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing (optional): see docs/CODE-SIGNING.md and add your provider's secrets here, e.g.
+          # AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          # AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          # AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Resonance ${{ github.ref_name }}'
+          releaseBody: |
+            Download **Resonance_*_x64-setup.exe** below and run it.
+            Windows may show a SmartScreen warning because the installer isn't code-signed: choose *More info → Run anyway*.
+          releaseDraft: false
+          prerelease: false

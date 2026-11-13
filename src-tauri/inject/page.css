@@ -1,0 +1,128 @@
+/* Applied to music.youtube.com: removes YouTube Music's own chrome and fits the page into
+   Resonance's content area (between the sidebar, title bar and player bar). */
+html, body, ytmusic-app, ytmusic-app-layout {
+  --ytmusic-nav-bar-height: 44px !important;
+  --ytmusic-player-bar-height: 88px !important;
+  --ytmusic-guide-width: 0px !important;
+  --ytmusic-mini-guide-width: 0px !important;
+  --ytmusic-general-background-a: var(--res-page, #121216) !important;
+  --ytmusic-general-background-b: var(--res-page, #121216) !important;
+  --ytmusic-general-background-c: var(--res-page, #121216) !important;
+  --ytmusic-brand-background-solid: var(--res-page, #121216) !important;
+  --ytmusic-background: var(--res-page, #121216) !important;
+}
+:root { --res-tint: 70, 50, 110; --res-l: 300px; --res-r: 8px; }
+
+html { background: var(--res-bgc, #07070a) !important; scrollbar-width: none !important; }
+html::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+/* YouTube Music's own top bar, side guide and bottom player bar */
+ytmusic-nav-bar, #nav-bar-background, #nav-bar-divider, #nav-bar-background-overlay,
+ytmusic-player-bar,
+#guide-wrapper, #mini-guide, #mini-guide-background, #mini-guide-spacer, #guide-spacer,
+tp-yt-app-drawer#guide, ytmusic-pivot-bar-renderer {
+  display: none !important;
+}
+ytmusic-guide-renderer { visibility: hidden !important; position: fixed !important; left: -9999px !important; }
+
+/* Fit the page between our sidebar and the right edge (or the now-playing panel) */
+ytmusic-app-layout {
+  margin-left: var(--res-l) !important;
+  margin-right: var(--res-r) !important;
+  display: block;
+}
+ytmusic-app-layout #content, ytmusic-app-layout > #layout, #layout.ytmusic-app {
+  margin-left: 0 !important; padding-left: 0 !important;
+}
+ytmusic-player-page {
+  left: var(--res-l) !important;
+  right: var(--res-r) !important;
+  width: auto !important;
+  max-width: none !important;
+  border-radius: var(--res-rad, 12px);
+  background: radial-gradient(1200px 700px at 30% 0%, rgba(var(--res-tint), calc(0.42 * var(--res-glow, 1))), var(--res-page, #121216) 70%) !important;
+}
+ytmusic-player-page #player { border-radius: 12px; overflow: hidden; }
+
+/* Popups and dialogs above the Resonance chrome */
+tp-yt-iron-dropdown, tp-yt-paper-dialog, ytmusic-popup-container, yt-notification-action-renderer, tp-yt-paper-toast {
+  z-index: 2147483600 !important;
+}
+/* the dim layer behind a dialog must stay *below* the dialog, or it swallows every click */
+tp-yt-iron-overlay-backdrop { z-index: 2147483590 !important; }
+/* YouTube's little "Added to queue" toasts: above Resonance's player bar, not under it */
+tp-yt-paper-toast { bottom: 100px !important; left: calc(var(--res-l, 300px) + 12px) !important; }
+/* Resonance opens YouTube Music's own ⋮ menus invisibly to run their actions */
+html.res-menu-ghost tp-yt-iron-dropdown { opacity: 0 !important; pointer-events: none !important; }
+
+/* Base + album-colored glow at the top of every page */
+body {
+  background-color: var(--res-page, #121216) !important;
+  background-image: linear-gradient(180deg, rgba(var(--res-tint), calc(0.40 * var(--res-glow, 1))) 0, rgba(var(--res-tint), calc(0.16 * var(--res-glow, 1))) 260px, rgba(var(--res-tint), calc(0.05 * var(--res-glow, 1))) 420px, rgba(18, 18, 22, 0) 560px) !important;
+  background-repeat: no-repeat !important;
+  background-position: 0 44px !important;
+  background-size: 100% 600px !important;
+}
+ytmusic-app, ytmusic-app-layout, #layout, ytmusic-browse-response, ytmusic-section-list-renderer,
+ytmusic-tabbed-search-results-renderer, ytmusic-search-page, #content.ytmusic-app,
+ytmusic-browse-response .background-gradient {
+  background: transparent !important;
+}
+
+/* Rounded art, Spotify-style hover rows/cards */
+ytmusic-two-row-item-renderer .image-wrapper, ytmusic-two-row-item-renderer yt-img-shadow,
+ytmusic-two-row-item-renderer img, ytmusic-responsive-list-item-renderer .thumbnail,
+ytmusic-responsive-list-item-renderer img, ytmusic-responsive-header-renderer yt-img-shadow,
+ytmusic-responsive-header-renderer img, ytmusic-detail-header-renderer yt-img-shadow {
+  border-radius: 8px !important;
+}
+ytmusic-two-row-item-renderer[has-circle-cropped-thumbnail] img { border-radius: 50% !important; }
+ytmusic-two-row-item-renderer { border-radius: 10px; transition: background-color .2s; }
+ytmusic-two-row-item-renderer:hover { background-color: rgba(255, 255, 255, .06); }
+ytmusic-responsive-list-item-renderer { border-radius: 8px; border-bottom: none !important; }
+ytmusic-responsive-list-item-renderer:hover { background-color: rgba(255, 255, 255, .07) !important; }
+ytmusic-chip-cloud-chip-renderer a, ytmusic-chip-cloud-chip-renderer .gradient-box { border-radius: 999px !important; }
+ytmusic-chip-cloud-chip-renderer:not([is-selected]) a { background: rgba(255, 255, 255, .08) !important; border: none !important; }
+ytmusic-chip-cloud-chip-renderer[is-selected] a { background: #fff !important; color: #111 !important; }
+
+/* Inner scrollbars (queue, lyrics…) */
+body ::-webkit-scrollbar { width: 10px; height: 10px; }
+body ::-webkit-scrollbar-track { background: transparent; }
+body ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+::selection { background: rgba(255, 72, 108, .45); }
+
+/* "Cover" mode: hide the music video, show the cover art instead (audio keeps playing) */
+html.res-cover ytmusic-player #song-video, html.res-cover ytmusic-player .html5-video-container {
+  opacity: 0 !important;
+}
+html.res-cover ytmusic-player #song-image {
+  display: block !important; opacity: 1 !important; visibility: visible !important; z-index: 2 !important;
+}
+/* Mini player closed with the X: hide it, keep playing */
+html.res-hide-mini ytmusic-app-layout:not([player-page-open]) ytmusic-player#player,
+html.res-hide-mini ytmusic-app-layout:not([player-page-open]) #player.ytmusic-player-page {
+  opacity: 0 !important; pointer-events: none !important;
+}
+
+/* Light theme (experimental): YouTube Music is dark-only, so its pages are inverted and
+   pictures / video are inverted back to their real colors. */
+html.res-light { background: #e9ebf0 !important; }
+html.res-light ytmusic-app { filter: invert(1) hue-rotate(180deg); }
+html.res-light ytmusic-app img, html.res-light ytmusic-app video, html.res-light ytmusic-app canvas,
+html.res-light ytmusic-app #res-cover-art, html.res-light ytmusic-app .res-cover-img { filter: invert(1) hue-rotate(180deg); }
+html.res-light body { background-color: #f4f5f8 !important; }
+
+/* Synced lyrics in YouTube Music's full-player Lyrics tab (YouTube's own lyrics are untimed) */
+ytmusic-tab-renderer.res-synced > :not(#res-page-lyrics) { display: none !important; }
+#res-page-lyrics { padding: 12px 8px 45vh; font-family: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif; }
+#res-page-lyrics .res-ply { font-size: 26px; font-weight: 750; line-height: 1.32; letter-spacing: -.3px; padding: 8px 0; color: rgba(255,255,255,.34);
+  cursor: pointer; transition: color .3s, transform .3s; transform-origin: left center; }
+#res-page-lyrics .res-ply:hover { color: rgba(255,255,255,.72); }
+#res-page-lyrics .res-ply.past { color: rgba(255,255,255,.55); }
+#res-page-lyrics .res-ply.on { color: #fff; transform: scale(1.025); }
+#res-page-lyrics .res-ply-credit { margin-top: 24px; font-size: 12px; color: rgba(255,255,255,.4); }
+#res-page-lyrics .res-ply-tr { display: block; font-size: .58em; font-weight: 600; opacity: .7; margin-top: 2px; letter-spacing: 0; }
+
+/* karaoke word fill in the full player's lyrics */
+#res-page-lyrics .res-ply.on .res-kw { color: transparent; background: linear-gradient(90deg, #fff var(--k, 0%), rgba(255,255,255,.42) var(--k, 0%)); -webkit-background-clip: text; background-clip: text; }
+#res-page-lyrics .res-ply-rm { display: block; font-size: .6em; font-weight: 600; opacity: .78; margin-top: 2px; letter-spacing: 0; }

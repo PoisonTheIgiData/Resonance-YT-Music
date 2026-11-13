@@ -1,0 +1,41 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "music",
+  "description": "Lets the Resonance interface injected into YouTube Music control the window and player integration.",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "https://music.youtube.com",
+      "https://music.youtube.com/*"
+    ]
+  },
+  "permissions": [
+    "allow-res-win",
+    "allow-res-player-state",
+    "allow-res-set-close-to-tray",
+    "allow-res-dominant-color",
+    "allow-res-sign-out",
+    "allow-res-set-widget",
+    "allow-res-set-widget-layout",
+    "allow-res-set-pref",
+    "allow-res-get-prefs",
+    "allow-res-check-update",
+    "allow-res-install-update",
+    "allow-res-open-url",
+    "allow-res-lyrics",
+    "allow-res-discord",
+    "allow-res-set-hotkeys",
+    "allow-res-autostart",
+    "allow-res-notify",
+    "allow-res-translate",
+    "allow-res-devices",
+    "allow-res-bt-power",
+    "allow-res-set-output",
+    "allow-res-read-log",
+    "allow-res-release-notes",
+    "allow-res-set-overlay",
+    "allow-res-remote"
+  ]
+}

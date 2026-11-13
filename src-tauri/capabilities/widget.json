@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "widget",
+  "description": "Taskbar mini player and song-change pop-up: play controls, reopening the app, hiding the pop-up.",
+  "windows": [
+    "widget",
+    "overlay"
+  ],
+  "permissions": [
+    "allow-res-widget-cmd"
+  ]
+}
