@@ -97,6 +97,28 @@
     }, true);
   }
 
+  // ---------- typing in Resonance's text fields ----------
+  // YouTube Music listens for its keyboard shortcuts (Space = play/pause, letters…) before the key
+  // reaches our fields, and, seen from the page, a key typed inside Resonance's interface doesn't
+  // look like it's coming from a text box — so it swallowed spaces in the search bar. Registered at
+  // document start, this runs first: ordinary typing keys in our fields go straight to the field.
+  // (Enter, Esc, Tab, arrows and Ctrl/Alt shortcuts still go through: Resonance uses them.)
+  if (IS_YTM) {
+    const PASS = new Set(['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'F11', 'F12']);
+    const ourField = (e) => {
+      const path = e.composedPath();
+      const t = path[0];
+      if (!t || !(t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return false;
+      return path.some((n) => n && n.tagName === 'RES-SHELL');
+    };
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+      window.addEventListener(type, (e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey || PASS.has(e.key) || !ourField(e)) return;
+        e.stopImmediatePropagation(); // the browser still types the character
+      }, true);
+    }
+  }
+
   // ---------- page CSS (as early as possible, before YouTube Music paints) ----------
   const pageStyle = document.createElement('style');
   pageStyle.textContent = IS_YTM ? (window.__RES_PAGE_CSS__ || '') : 'html{padding-top:44px!important;box-sizing:border-box!important}';
