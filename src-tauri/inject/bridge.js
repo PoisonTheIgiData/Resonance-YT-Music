@@ -500,6 +500,24 @@
   }
 
   let volSet = { v: -1, at: 0 }, volFix = 0;
+  // A queue entry's picture. YouTube Music only loads the pictures of entries that have been on
+  // screen (the rest are a blank placeholder), so read the address from the entry's data instead.
+  function itemArt(el) {
+    const img = $('img', el);
+    if (img && img.src && !img.src.startsWith('data:')) return img.src.replace(/(i\.ytimg\.com\/vi\/[\w-]+\/)(default|hqdefault|sddefault)\.jpg/, '$1mqdefault.jpg');
+    let d = null;
+    try { d = el.data || (el.__data && el.__data.data) || null; } catch (e) {}
+    if (d && d.playlistPanelVideoRenderer) d = d.playlistPanelVideoRenderer;
+    const th = d && d.thumbnail && d.thumbnail.thumbnails;
+    if (th && th.length) {
+      const u = th[th.length - 1].url || '';
+      // videos: the 16:9 picture without black bars (cropped to a square on screen)
+      if (u && !u.startsWith('data:')) return (u.startsWith('//') ? 'https:' + u : u).replace(/=w\d+-h\d+[^&?#]*/, '=w120-h120-l90-rj').replace(/(i\.ytimg\.com\/vi\/[\w-]+\/)(default|hqdefault|sddefault)\.jpg/, '$1mqdefault.jpg');
+    }
+    const id = d && d.videoId;
+    return id && /^[\w-]{6,20}$/.test(id) ? `https://i.ytimg.com/vi/${id}/mqdefault.jpg` : '';
+  }
+
   const queueItems = () => Array.from(new Set($$('ytmusic-player-queue ytmusic-player-queue-item, #queue ytmusic-player-queue-item')));
 
   const api = {
@@ -513,18 +531,28 @@
       const album = (md && md.album) || '';
       let art = '';
       if (md && md.artwork && md.artwork.length) art = md.artwork[md.artwork.length - 1].src;
-      if (!art) { const img = $('.image', b) || $('img', $('.thumbnail-image-wrapper', b)); art = img && img.src; }
-      const artistLink = $('.byline a[href*="channel/"]', b) || $('.byline a[href*="browse/"]', b);
-      let artistId = '';
+      if (art && art.startsWith('data:image/gif')) art = ''; // YouTube's blank placeholder
+      if (!art) { const img = $('.image', b) || $('img', $('.thumbnail-image-wrapper', b)); art = img && img.src && !img.src.startsWith('data:image/gif') ? img.src : ''; }
+      // videos (and tracks whose picture hasn't loaded yet): YouTube's own thumbnail for the video
+      if (!art && p && p.getVideoData) { const id = (p.getVideoData() || {}).video_id; if (id && /^[\w-]{6,20}$/.test(id)) art = `https://i.ytimg.com/vi/${id}/hqdefault.jpg`; }
+      // artist: a channel link (or a browse link that isn't an album); album: a browse/MPRE… link
+      const bylineLinks = b ? Array.from(b.querySelectorAll('.byline a[href]')) : [];
+      const artistLink = bylineLinks.find((x) => /channel\//.test(x.getAttribute('href'))) || bylineLinks.find((x) => /browse\/(?!MPRE)/.test(x.getAttribute('href')));
+      const albumLink = bylineLinks.find((x) => /browse\/MPRE/.test(x.getAttribute('href')));
+      let artistId = '', albumId = '';
       if (artistLink) { const m = artistLink.getAttribute('href').match(/(?:channel|browse)\/([\w-]+)/); if (m) artistId = m[1]; }
+      if (albumLink) { const m = albumLink.getAttribute('href').match(/browse\/([\w-]+)/); if (m) albumId = m[1]; }
       const dur = v && isFinite(v.duration) ? v.duration : 0;
       let repeat = 'NONE';
       if (b) repeat = b.repeatMode_ || b.repeatMode || b.getAttribute('repeat-mode_') || b.getAttribute('repeat-mode') || 'NONE';
       const layout = $('ytmusic-app-layout');
+      const uiState = (layout && (layout.getAttribute('player-ui-state') || layout.getAttribute('player-ui-state_') || layout.playerUiState_ || layout.playerUiState)) || '';
+      const ppOpen = !!(layout && (layout.hasAttribute('player-page-open') || layout.playerPageOpen_ || /PLAYER_PAGE_OPEN|FULLSCREEN/.test(String(uiState))));
+      document.documentElement.classList.toggle('res-pp', ppOpen); // page.css: YouTube's floating mini player stays hidden otherwise
       const avatar = $('ytmusic-settings-button img') || $('#avatar img');
       return {
         hasTrack: !!(title && v && (v.src || v.currentSrc)),
-        title, artist, album, art: bigArt(art), artistId,
+        title, artist, album, art: bigArt(art), artistId, albumId,
         playing: !!(v && !v.paused && !v.ended),
         time: v ? v.currentTime : 0,
         duration: dur,
@@ -533,7 +561,7 @@
         muted: p && p.isMuted ? p.isMuted() : !!(v && v.muted),
         like: likeStatus(b),
         repeat: String(repeat).toUpperCase(),
-        playerPageOpen: !!(layout && (layout.hasAttribute('player-page-open') || layout.playerPageOpen_)),
+        playerPageOpen: ppOpen,
         url: location.href,
         avatar: avatar && avatar.src && !/data:image\/gif/.test(avatar.src) ? avatar.src : '',
         signedOutUI: !!$('a.sign-in-link, ytmusic-nav-bar a[href*="ServiceLogin"]'),
@@ -547,17 +575,6 @@
           if (document.documentElement.classList.contains('res-cover')) mode = 'song';
           else if (!mode) mode = 'video';
           return { available: true, native, mode };
-        })(),
-        mini: (() => {
-          // YouTube Music's floating mini video player (shown when the full player is closed)
-          const layout = $('ytmusic-app-layout');
-          const st = (layout && (layout.getAttribute('player-ui-state') || layout.getAttribute('player-ui-state_'))) || '';
-          const p = $('ytmusic-player#player') || $('#player.ytmusic-player-page') || $('ytmusic-player');
-          if (!p || document.documentElement.classList.contains('res-hide-mini')) return null;
-          const r = p.getBoundingClientRect();
-          const isMini = /MINI/i.test(st) || (r.width > 60 && r.width < innerWidth * 0.45 && r.height < innerHeight * 0.5 && !(layout && layout.hasAttribute('player-page-open')));
-          if (!isMini || r.width < 60 || r.height < 40 || getComputedStyle(p).visibility === 'hidden') return null;
-          return { x: r.left, y: r.top, w: r.width, h: r.height };
         })(),
         _cover: syncCoverOverlay(bigArt(art)),
         shuffle: shuffleOn,
@@ -640,9 +657,7 @@
           break;
         }
         case 'seekPct': { const d = v && isFinite(v.duration) ? v.duration : 0; if (d) api.cmd('seek', Math.max(0, Math.min(1, Number(arg) || 0)) * d); break; }
-        case 'hideMini': document.documentElement.classList.add('res-hide-mini'); break;
-        case 'showMini': document.documentElement.classList.remove('res-hide-mini'); break;
-        case 'playerPage': document.documentElement.classList.remove('res-hide-mini'); clickFirst(['.toggle-player-page-button', '.middle-controls', '.content-info-wrapper'], b); break;
+        case 'playerPage': clickFirst(['.toggle-player-page-button', '.middle-controls', '.content-info-wrapper'], b); break;
         case 'closePlayerPage': {
           const layout = $('ytmusic-app-layout');
           if (layout && (layout.hasAttribute('player-page-open') || layout.playerPageOpen_)) clickFirst(['.toggle-player-page-button'], b);
@@ -705,13 +720,12 @@
 
     queue() {
       return queueItems().slice(0, 80).map((el, i) => {
-        const img = $('img', el);
         return {
           i,
           title: text($('.song-title', el)),
           artist: text($('.byline', el)),
           duration: text($('.duration', el)),
-          art: img && img.src && !img.src.startsWith('data:') ? img.src : '',
+          art: itemArt(el),
           current: el.hasAttribute('selected') || ['playing', 'paused'].includes(el.getAttribute('play-button-state')),
         };
       });

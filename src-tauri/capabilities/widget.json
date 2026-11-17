@@ -4,7 +4,8 @@
   "description": "Taskbar mini player and song-change pop-up: play controls, reopening the app, hiding the pop-up.",
   "windows": [
     "widget",
-    "overlay"
+    "overlay",
+    "menu"
   ],
   "permissions": [
     "allow-res-widget-cmd"

@@ -190,11 +190,19 @@ pub async fn res_install_update(app: AppHandle, url: String) -> Result<(), Strin
     Ok(())
 }
 
+/// Until when (ms since 1970) Resonance must not tuck itself into the taskbar player because the
+/// browser was just opened from it (opening a link is not "clicking away").
+pub static NO_AUTODOCK_UNTIL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
 #[tauri::command]
 pub fn res_open_url(url: String) -> Result<(), String> {
     if !(url.starts_with("https://github.com/") || url.starts_with("https://discord.com/") || url.starts_with("https://lrclib.net/")) {
         return Err("blocked".into());
     }
+    NO_AUTODOCK_UNTIL.store(now_ms() + 4000, std::sync::atomic::Ordering::SeqCst);
     #[cfg(windows)]
     {
         std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn().map_err(|e| e.to_string())?;

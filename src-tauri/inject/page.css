@@ -98,9 +98,10 @@ html.res-cover ytmusic-player #song-video, html.res-cover ytmusic-player .html5-
 html.res-cover ytmusic-player #song-image {
   display: block !important; opacity: 1 !important; visibility: visible !important; z-index: 2 !important;
 }
-/* Mini player closed with the X: hide it, keep playing */
-html.res-hide-mini ytmusic-app-layout:not([player-page-open]) ytmusic-player#player,
-html.res-hide-mini ytmusic-app-layout:not([player-page-open]) #player.ytmusic-player-page {
+/* YouTube Music's floating mini video player (when the full player is closed): never shown —
+   closing the full player closes it completely. Music keeps playing. */
+html:not(.res-pp) ytmusic-app-layout:not([player-page-open]) ytmusic-player#player,
+html:not(.res-pp) ytmusic-app-layout:not([player-page-open]) #player.ytmusic-player-page {
   opacity: 0 !important; pointer-events: none !important;
 }
 
@@ -128,14 +129,17 @@ ytmusic-tab-renderer.res-synced > :not(#res-page-lyrics) { display: none !import
 #res-page-lyrics .res-ply-rm { display: block; font-size: .6em; font-weight: 600; opacity: .78; margin-top: 2px; letter-spacing: 0; }
 
 /* ---------- page transitions (set by Resonance when you change page) ---------- */
+/* Page changes: opacity only. (Moving the page with a transform breaks YouTube Music's fixed
+   headers and backgrounds, which then flash dark or vanish.) The old page stays dimly visible
+   while the new one loads, instead of the area going black. */
 html.res-nav-out ytmusic-app-layout > #content, html.res-nav-out #content.ytmusic-app {
-  opacity: 0 !important; transform: translate(var(--res-nav-out-x, 0), 0);
-  transition: opacity .14s ease-in, transform .14s ease-in;
+  opacity: .72 !important; transition: opacity .22s ease;
 }
 html.res-nav-in ytmusic-app-layout > #content, html.res-nav-in #content.ytmusic-app {
-  animation: resNavIn .42s cubic-bezier(.2, .8, .2, 1) both;
+  animation: resNavIn .5s cubic-bezier(.25, .1, .25, 1) both;
 }
 @keyframes resNavIn {
-  from { opacity: 0; transform: translate(var(--res-nav-in-x, 0), var(--res-nav-in-y, 12px)); }
-  to { opacity: 1; transform: none; }
+  from { opacity: .72; }
+  to { opacity: 1; }
+}
 }

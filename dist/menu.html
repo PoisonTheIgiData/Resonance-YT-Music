@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Resonance menu</title>
+<style>
+  :root { --bg: #121216; --text: #f4f4f7; --muted: #a3a3b0; --hover: rgba(255,255,255,.07); --line: rgba(255,255,255,.07);
+    --accent: #ff486c; --tint: 70, 50, 110; --rad: 12px; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; }
+  body { font: 13.5px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: var(--text); }
+  .menu { position: absolute; left: 6px; right: 6px; bottom: 6px; box-sizing: border-box; padding: 6px; border-radius: var(--rad);
+    background: linear-gradient(180deg, rgba(var(--tint), .28), rgba(var(--tint), 0) 70%), var(--bg);
+    box-shadow: 0 0 0 1px var(--line), 0 10px 28px rgba(0,0,0,.45);
+    opacity: 0; transform: translateY(6px) scale(.98); transform-origin: 50% 100%;
+    transition: opacity .14s ease-out, transform .16s cubic-bezier(.2,.8,.2,1); }
+  .menu.in { opacity: 1; transform: none; }
+  body.light .menu { box-shadow: 0 0 0 1px var(--line), 0 10px 28px rgba(0,0,0,.18);
+    background: linear-gradient(180deg, rgba(var(--tint), .16), rgba(var(--tint), 0) 70%), var(--bg); }
+  .head { display: flex; align-items: center; gap: 10px; padding: 4px 4px 8px; }
+  .art { width: 44px; height: 44px; flex: none; border-radius: max(4px, calc(var(--rad) - 4px)); background: var(--hover) center/cover no-repeat; }
+  .hm { min-width: 0; flex: 1; }
+  .t { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .a { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sep { height: 1px; background: var(--line); margin: 4px 6px; }
+  .ctrl { display: flex; justify-content: space-between; padding: 2px 4px; }
+  .ctrl button { width: 40px; height: 36px; justify-content: center; padding: 0; }
+  .ctrl button.big { background: var(--text); color: var(--bg); border-radius: 50%; width: 36px; }
+  .ctrl button.big:hover { background: var(--text); filter: brightness(.92); }
+  .ctrl button.on { color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; }
+  .row .lbl { color: var(--muted); font-size: 12.5px; width: 44px; flex: none; }
+  input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 4px; cursor: pointer; }
+  .pct { width: 34px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chips { display: flex; gap: 4px; flex: 1; }
+  .chips button { all: unset; flex: 1; text-align: center; font-size: 12px; height: 24px; line-height: 24px; border-radius: 99px; background: var(--hover); color: var(--text); cursor: default; }
+  .chips button:hover { filter: brightness(1.25); }
+  body.light .chips button:hover { filter: brightness(.94); }
+  .chips button.on { background: var(--accent); color: #fff; }
+  button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 11px; width: 100%; height: 34px; padding: 0 10px;
+    border-radius: max(4px, calc(var(--rad) - 5px)); cursor: default; color: var(--text); }
+  button:hover, button:focus-visible { background: var(--hover); }
+  button svg { width: 17px; height: 17px; flex: none; fill: currentColor; opacity: .9; }
+  .ctrl button svg { width: 19px; height: 19px; opacity: 1; }
+  button.quit:hover { background: rgba(255, 72, 108, .16); color: #ff5d7e; }
+  button.ic { width: 28px; height: 28px; padding: 0; justify-content: center; flex: none; }
+  @media (prefers-reduced-motion: reduce) { .menu { transition: none; } }
+</style>
+</head>
+<body>
+  <div class="menu" id="menu" role="menu">
+    <div class="head"><div class="art" id="art"></div><div class="hm"><div class="t" id="t">Nothing playing</div><div class="a" id="a"></div></div></div>
+    <div class="ctrl">
+      <button data-c="shuffle" id="shuf" title="Shuffle"><svg viewBox="0 0 24 24"><path d="M10.6 9.2L5.4 4 4 5.4l5.2 5.2 1.4-1.4zM14.5 4l2 2L4 18.6 5.4 20 18 7.5l2 2V4h-5.5zm.3 9.4l-1.4 1.4 3.1 3.1-2 2H20v-5.5l-2 2-3.2-3z"/></svg></button>
+      <button data-c="prev" title="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+      <button data-c="toggle" class="big" id="tg" title="Play"><svg viewBox="0 0 24 24"><path id="tgP" d="M8 5v14l11-7z"/></svg></button>
+      <button data-c="next" title="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z"/></svg></button>
+      <button data-c="like" id="like" title="Like"><svg viewBox="0 0 24 24"><path id="likeP" d="M16.5 3c-1.7 0-3.4.8-4.5 2.1C10.9 3.8 9.2 3 7.5 3 4.4 3 2 5.4 2 8.5c0 3.8 3.4 6.9 8.6 11.5L12 21.3l1.4-1.3C18.6 15.4 22 12.3 22 8.5 22 5.4 19.6 3 16.5 3zm-4.4 15.6l-.1.1-.1-.1C7.1 14.2 4 11.4 4 8.5 4 6.5 5.5 5 7.5 5c1.5 0 3 1 3.6 2.4h1.9C13.5 6 15 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.9-3.1 5.7-7.9 10.1z"/></svg></button>
+    </div>
+    <div class="row"><button class="ic" id="mute" title="Mute"><svg viewBox="0 0 24 24"><path id="volP" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg></button><input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume"><span class="pct" id="volT"></span></div>
+    <div class="row"><span class="lbl">Sleep</span><div class="chips" id="sleep"><button data-s="">Off</button><button data-s="15">15m</button><button data-s="30">30m</button><button data-s="60">1h</button><button data-s="end">Song</button></div></div>
+    <div class="sep"></div>
+    <button data-c="show" role="menuitem"><svg viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 4v8h14V9H5z"/></svg>Show Resonance</button>
+    <button data-c="quit" class="quit" role="menuitem"><svg viewBox="0 0 24 24"><path d="M11 3h2v10h-2zM7.05 6.05l1.41 1.41A6 6 0 1 0 15.54 7.46l1.41-1.41A8 8 0 1 1 7.05 6.05z"/></svg>Quit</button>
+  </div>
+<script>
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  const invoke = (cmd, args) => { try { return window.__TAURI_INTERNALS__.invoke(cmd, args); } catch (e) {} };
+  const send = (c) => invoke('res_widget_cmd', { cmd: c });
+  const $ = (id) => document.getElementById(id);
+  const menu = $('menu');
+  const PLAY = 'M8 5v14l11-7z', PAUSE = 'M6 5h4v14H6zm8 0h4v14h-4z';
+  const HEART_ON = 'M12 21.3l-1.4-1.3C5.4 15.4 2 12.3 2 8.5 2 5.4 4.4 3 7.5 3c1.7 0 3.4.8 4.5 2.1C13.1 3.8 14.8 3 16.5 3 19.6 3 22 5.4 22 8.5c0 3.8-3.4 6.9-8.6 11.5L12 21.3z';
+  const HEART_OFF = document.getElementById('likeP').getAttribute('d');
+  const VOL_ON = 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z';
+  const VOL_OFF = 'M16.5 12A4.5 4.5 0 0 0 14 8v2.2l2.5 2.5V12zM19 12c0 .9-.2 1.8-.5 2.6l1.5 1.5A8.9 8.9 0 0 0 21 12c0-4.3-3-7.9-7-8.8v2.1c2.9.9 5 3.5 5 6.7zM4.3 3L3 4.3 7.7 9H3v6h4l5 5v-6.7l4.3 4.3c-.7.5-1.4.9-2.3 1.2v2.1a9 9 0 0 0 3.7-1.8l2 2 1.3-1.3L4.3 3zM12 4L9.9 6.1 12 8.2V4z';
+  let shownAt = 0, vol = 0, lastVol = 50, dragging = false;
+  function close() { menu.classList.remove('in'); send('menu:close'); }
+  function paintVol(v) {
+    vol = Math.round(v);
+    if (!dragging) $('vol').value = vol;
+    $('volT').textContent = vol + '%';
+    $('volP').setAttribute('d', vol ? VOL_ON : VOL_OFF);
+    $('mute').title = vol ? 'Mute' : 'Unmute';
+  }
+  window.resMenu = (d) => {
+    const th = d.theme || {};
+    const r = document.documentElement.style;
+    for (const k of ['bg', 'text', 'muted', 'hover', 'line', 'accent', 'tint', 'rad']) if (th[k]) r.setProperty('--' + k, th[k]);
+    document.body.classList.toggle('light', !!th.light);
+    $('t').textContent = d.title || 'Nothing playing';
+    $('a').textContent = d.artist || '';
+    $('art').style.backgroundImage = d.art ? 'url("' + String(d.art).replace(/"/g, '%22') + '")' : 'none';
+    $('tg').title = d.playing ? 'Pause' : 'Play';
+    $('tgP').setAttribute('d', d.playing ? PAUSE : PLAY);
+    const liked = String(d.like || '').toUpperCase() === 'LIKE';
+    $('like').classList.toggle('on', liked); $('likeP').setAttribute('d', liked ? HEART_ON : HEART_OFF);
+    $('like').title = liked ? 'Remove like' : 'Like';
+    $('shuf').classList.toggle('on', !!d.shuffle);
+    if (d.volume != null) { paintVol(Number(d.volume) || 0); if (vol) lastVol = vol; }
+    const sl = d.sleep == null ? '' : String(d.sleep);
+    for (const b of $('sleep').children) b.classList.toggle('on', sl === '' ? b.dataset.s === '' : sl === 'end' ? b.dataset.s === 'end' : false);
+    $('sleep').title = sl === '' ? 'Sleep timer off' : sl === 'end' ? 'Stops at the end of this song' : 'Stops in ' + sl + ' min';
+    menu.classList.remove('in'); void menu.offsetWidth;
+    requestAnimationFrame(() => menu.classList.add('in'));
+    shownAt = Date.now();
+  };
+  // the playback buttons keep the menu open (so you can press Next twice); the others close it
+  menu.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-c]');
+    if (!b) return;
+    const c = b.dataset.c;
+    send(c);
+    if (c === 'toggle') { const p = $('tgP').getAttribute('d') === PLAY; $('tgP').setAttribute('d', p ? PAUSE : PLAY); }
+    else if (c === 'like') { const on = !$('like').classList.contains('on'); $('like').classList.toggle('on', on); $('likeP').setAttribute('d', on ? HEART_ON : HEART_OFF); }
+    else if (c === 'shuffle') $('shuf').classList.toggle('on');
+    if (c === 'show' || c === 'quit') close();
+  });
+  $('vol').addEventListener('input', (e) => { dragging = true; paintVol(Number(e.target.value)); send('vol:' + vol); });
+  $('vol').addEventListener('change', () => { dragging = false; if (vol) lastVol = vol; });
+  $('vol').addEventListener('wheel', (e) => { e.preventDefault(); paintVol(Math.max(0, Math.min(100, vol + (e.deltaY < 0 ? 5 : -5)))); send('vol:' + vol); }, { passive: false });
+  $('mute').addEventListener('click', () => { const v = vol ? 0 : (lastVol || 50); if (vol) lastVol = vol; paintVol(v); send('vol:' + v); });
+  $('sleep').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    for (const x of $('sleep').children) x.classList.toggle('on', x === b);
+    send('sleep:' + b.dataset.s);
+  });
+  // clicking anywhere else (or pressing Esc) closes it
+  window.addEventListener('blur', () => { if (Date.now() - shownAt > 150) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  document.addEventListener('mousedown', (e) => { if (!menu.contains(e.target)) close(); });
+  send('menu:ready');
+</script>
+</body>
+</html>

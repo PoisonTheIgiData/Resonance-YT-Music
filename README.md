@@ -54,7 +54,8 @@ likes and recommendations are YouTube Music's own, because you sign in with your
 - Spotify-style layout: collapsible sidebar with your playlists, player bar, now-playing panel with *Up next* and *Lyrics*
 - Your playlists from YouTube Music with cover art; pin playlists, put them in folders, drag to reorder
 - Queue with drag-to-reorder, right-click actions and **Save queue as playlist**
-- Cover / Video switch, pop-out video (picture in picture), full player, full-screen view (F11)
+- Cover / Video switch, pop-out video (picture in picture), full-screen view (F11)
+- Click the song's name or picture (player bar or now-playing panel) for the full player; click the artist or album for its page
 - Continue the last song (or playlist) where you left off after a restart
 - Shuffle that really shuffles, sleep timer with fade-out, skip intro/outro points per song
 - Built-in ad blocker
@@ -153,7 +154,7 @@ github.com. The app itself is still built and usable.
 | **Windowed** | Normal window | Custom title bar; drag it, double-click to maximize |
 | **Full-screen view** | F11 or the full-screen button in the player bar | Big cover art and lyrics; Esc to leave |
 | **Mini player** | Mini-player button in the title bar | Small, always on top; double-click it or ⤢ to go back |
-| **Taskbar player** | Settings → Taskbar → turn it on, then minimize or close to tray | Sits on the taskbar with your chosen layout |
+| **Taskbar player** | Settings → Taskbar → turn it on, then minimize, close to tray or just click away to another window | Sits on the taskbar with your chosen layout; right-click it for a menu in Resonance's colours (playback, like, shuffle, volume, sleep timer, Show Resonance, Quit); the Bluetooth / audio bubble also has a **Resonance volume** slider |
 | **Tray** | Settings → General → *Close to tray* | Closing keeps the music playing; left-click the tray icon to reopen |
 
 **Start-up:** Resonance reopens in the mode it was closed in (windowed, mini player, or hidden with the taskbar
@@ -238,7 +239,7 @@ untick to add or remove, or create a new playlist.
 |---|---|
 | **General** | Ad blocker · close to tray · start with Windows (and straight into the tray) · **Bluetooth & audio output** (+ pause on headphone disconnect, resume on reconnect, low-battery warning) · **song-change pop-up** (corner, also when in front) · song-change notifications · start page · offer to continue the last song |
 | **Appearance** | Theme (dark / light / system / **custom** with editor) · **interface size** · **animations** (page transitions, mini player and taskbar player) · color scheme (song / profile picture / custom) · accent color · glow strength · corners · playlist covers |
-| **Player bar** | Choose which buttons appear (shuffle, repeat, like, phone remote, cover/video, pop-out, full screen, sleep, full player, queue, volume) · time display |
+| **Player bar** | Choose which buttons appear (shuffle, repeat, like, phone remote, cover/video, pop-out, full screen, sleep, queue, volume) · time display |
 | **Taskbar** | Taskbar player on/off · layout editor |
 | **Playback** | Crossfade · volume leveling · **karaoke lyrics** · **visualizer** (where, style, strength) · Windows media controls · translate lyrics (+ language) · **romanize lyrics** · sleep-timer fade |
 | **Equalizer** | 10 bands, presets, **remember per audio output** |

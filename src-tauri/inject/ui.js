@@ -27,7 +27,7 @@
   const S = { dynamicColor: true, closeToTray: false, adblock: true, npOpen: false, sidebarCollapsed: false, avMode: '', taskbarWidget: false, widgetLayouts: [], widgetLayoutId: 'classic' };
   Object.assign(S, {
     colorMode: 'song', customColor: '#ff486c', accentMode: 'brand', glow: 100, corners: 'normal', plCovers: true,
-    pb_shuffle: true, pb_repeat: true, pb_like: true, pb_av: true, pb_full: true, pb_queue: true, pb_volume: true,
+    pb_shuffle: true, pb_repeat: true, pb_like: true, pb_av: true, pb_queue: true, pb_volume: true,
     timeMode: 'elapsed', startPage: 'home', showResume: true,
     pb_sleep: true, pb_pip: true, pb_fs: true, pb_remote: true, theme: 'dark', sleepFade: true, notify: false, lyrTranslate: false, lyrLang: 'en',
     sb: { items: [] }, devices: true, pageAnim: true,
@@ -56,6 +56,8 @@
     invoke('res_set_widget', { value: !!S.taskbarWidget }).catch(() => {});
     const sendAnim = () => invoke('res_win', { action: S.pageAnim !== false && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'anim:on' : 'anim:off' }).catch(() => {});
     sendAnim(); window.__resSendAnim = sendAnim;
+    var sendAutoDock = () => invoke('res_win', { action: S.autoDock !== false ? 'autodock:on' : 'autodock:off' }).catch(() => {});
+    sendAutoDock();
     invoke('res_set_overlay', { enabled: !!S.overlay, corner: S.overlayCorner || 'bottom-right', always: !!S.overlayAlways }).catch(() => {});
     sendLayout();
   }
@@ -455,8 +457,8 @@
     <aside class="np panel auto main-only" id="np">
       <div class="np-head"><span>Now playing</span><button class="icon-btn" id="btnCloseNp" title="Close">${ic('close')}</button></div>
       <div class="np-scroll">
-        <div class="np-art">${ic('note')}<img id="npArt" alt=""></div>
-        <div class="np-title" id="npTitle">Nothing playing</div>
+        <div class="np-art" id="npArtBox" title="Full player">${ic('note')}<img id="npArt" alt=""></div>
+        <div class="np-title" id="npTitle" title="Full player">Nothing playing</div>
         <div class="np-artist" id="npArtist">Pick something to start</div>
         <div class="np-tabs"><button data-np="queue" class="on">Up next</button><button data-np="lyrics">Lyrics</button><button class="np-save icon-btn" id="btnSaveQueue" title="Save this queue as a playlist">${ic('playlistAdd')}</button></div>
         <div id="queue"><div class="lib-empty">Your queue will show up here.</div></div>
@@ -468,8 +470,8 @@
 
     <footer class="playerbar auto main-only"><canvas class="viz pb-viz" id="pbViz" aria-hidden="true"></canvas>
       <div class="pb-left">
-        <button class="pb-art" id="pbArtBtn" title="Now playing">${ic('note')}<img id="pbArt" alt=""></button>
-        <div class="pb-meta"><button class="pb-title" id="pbTitle">Nothing playing</button><button class="pb-artist" id="pbArtist"></button></div>
+        <button class="pb-art" id="pbArtBtn" title="Full player">${ic('note')}<img id="pbArt" alt=""></button>
+        <div class="pb-meta"><button class="pb-title" id="pbTitle" title="Full player">Nothing playing</button><button class="pb-artist" id="pbArtist"></button></div>
         <button class="icon-btn pb-remote" id="btnRemote" title="Phone remote — control Resonance from your phone">${ic('phone')}</button>
         <button class="icon-btn like" id="btnLike" title="Like">${ic('heart')}</button>
       </div>
@@ -493,7 +495,6 @@
         <button class="icon-btn" id="btnPip" title="Pop-out video">${ic('pipOut')}</button>
         <button class="icon-btn" id="btnFs" title="Full-screen view (F11)">${ic('full')}</button>
         <button class="icon-btn" id="btnSleep" title="Sleep timer">${ic('moon')}<span class="sleep-badge" id="sleepBadge" hidden></span></button>
-        <button class="icon-btn" id="btnPlayerPage" title="Full player (video, lyrics, related)">${ic('expand')}</button>
         <button class="icon-btn" id="btnQueue" title="Now playing &amp; queue">${ic('queue')}</button>
         <button class="icon-btn dev-btn" id="btnDev" hidden><span class="dev-i"></span><span class="dev-p"></span></button>
         <button class="icon-btn" id="btnMute" title="Mute">${ic('vol')}</button>
@@ -582,7 +583,7 @@
               <div class="range-row"><input type="range" min="0" max="100" step="5" data-set="glow"><span class="le-val" id="glowV"></span></div></div>
             <div class="setting"><div><div class="s-title">Corners</div><div class="s-sub">Roundness of panels</div></div>
               <div class="seg" data-set="corners"><button data-v="sharp">Sharp</button><button data-v="normal">Normal</button><button data-v="round">Round</button></div></div>
-            <label class="setting"><div><div class="s-title">Animations</div><div class="s-sub">Pages slide when you switch between Home, Explore and Library; the window glides into and out of the mini player; the taskbar player rises into the taskbar</div></div><input type="checkbox" class="toggle" data-set="pageAnim"></label>
+            <label class="setting"><div><div class="s-title">Animations</div><div class="s-sub">Pages fade softly when they change; the window glides into the mini player and into the taskbar player when you minimize, and grows back out of it; the taskbar player rises into the taskbar</div></div><input type="checkbox" class="toggle" data-set="pageAnim"></label>
             <label class="setting"><div><div class="s-title">Playlist covers in the sidebar</div><div class="s-sub">Off shows colored letter tiles instead</div></div><input type="checkbox" class="toggle" data-set="plCovers"></label>
           </section>
           <section data-pane="player" hidden>
@@ -595,7 +596,6 @@
             <label class="setting"><div class="s-title">Pop-out video button</div><input type="checkbox" class="toggle" data-set="pb_pip"></label>
             <label class="setting"><div class="s-title">Full-screen view button</div><input type="checkbox" class="toggle" data-set="pb_fs"></label>
             <label class="setting"><div class="s-title">Sleep timer button</div><input type="checkbox" class="toggle" data-set="pb_sleep"></label>
-            <label class="setting"><div class="s-title">Full player button</div><input type="checkbox" class="toggle" data-set="pb_full"></label>
             <label class="setting"><div class="s-title">Now playing &amp; queue button</div><input type="checkbox" class="toggle" data-set="pb_queue"></label>
             <label class="setting"><div class="s-title">Volume</div><input type="checkbox" class="toggle" data-set="pb_volume"></label>
             <div class="setting"><div><div class="s-title">Song length shows</div><div class="s-sub">Tip: click the time in the player bar to switch</div></div>
@@ -682,6 +682,7 @@
           </section>
           <section data-pane="taskbar" hidden>
             <label class="setting"><div><div class="s-title">Taskbar mini player</div><div class="s-sub">When Resonance is minimized or in the tray, show play controls on the taskbar</div></div><input type="checkbox" class="toggle" id="setWidget"></label>
+            <label class="setting sub-setting"><div><div class="s-title">Minimize into it when you click away</div><div class="s-sub">When you switch to another window, Resonance tucks itself into the taskbar player</div></div><input type="checkbox" class="toggle" id="setAutoDock"></label>
             <div class="setting"><div><div class="s-title">Layout</div><div class="s-sub" id="layoutSub">Classic</div></div><button class="btn-small" id="btnEditLayout">Edit layouts</button></div>
           </section>
           <section data-pane="account" hidden>
@@ -837,9 +838,9 @@
       </div>
     </div></div>
 
-    <button class="mini-x auto" id="miniX" title="Close mini player (music keeps playing)" hidden>${ic('close')}</button>
     <div class="toast" id="toast" hidden></div>
-    <div class="veil" id="veil" aria-hidden="true"></div>`);
+    <div class="veil" id="veil" aria-hidden="true"></div>
+    <div class="navload" id="navLoad" aria-hidden="true"></div>`);
 
     const R = () => window.__res;
     const cmd = (name, arg) => { try { R() && R().cmd(name, arg); } catch (e) {} setTimeout(poll, 120); };
@@ -903,6 +904,7 @@
       $('#setAdblock').checked = S.adblock !== false;
       $('#setTray').checked = !!S.closeToTray;
       $('#setWidget').checked = !!S.taskbarWidget;
+      $('#setAutoDock').checked = S.autoDock !== false; $('#setAutoDock').disabled = !S.taskbarWidget;
       $('#setDevices').checked = S.devices !== false;
       $$('#settingsModal [data-set]').forEach((el) => {
         const k = el.dataset.set;
@@ -1046,7 +1048,7 @@
       wrap.style.setProperty('--glow', g);
       document.documentElement.style.setProperty('--res-glow', g);
       wrap.classList.toggle('no-covers', !S.plCovers);
-      for (const k of ['shuffle', 'repeat', 'like', 'av', 'full', 'queue', 'volume', 'sleep', 'pip', 'fs', 'remote']) wrap.classList.toggle('hide-pb-' + k, S['pb_' + k] === false);
+      for (const k of ['shuffle', 'repeat', 'like', 'av', 'queue', 'volume', 'sleep', 'pip', 'fs', 'remote']) wrap.classList.toggle('hide-pb-' + k, S['pb_' + k] === false);
       const light = S.theme === 'light' || (S.theme === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
       wrap.classList.toggle('light', light);
       document.documentElement.classList.toggle('res-light', light);
@@ -1060,9 +1062,11 @@
       if (karaokeMode !== undefined && karaokeMode !== S.karaoke) { karaokeMode = S.karaoke; drawLyrics(); fsDrawLyrics(); removePageLyrics(); }
       karaokeMode = S.karaoke;
       wrap.classList.toggle('viz-bar', S.viz === 'bar' || S.viz === 'both');
+      setTimeout(sendMenuTheme, 0);
     }
     var appliedZoom = 1, zoomHold = false, karaokeMode;
-    $('#setWidget').onchange = (e) => { S.taskbarWidget = e.target.checked; saveS(); invoke('res_set_widget', { value: S.taskbarWidget }).catch(() => {}); if (S.taskbarWidget) toast('Minimize Resonance to see it on the taskbar'); };
+    $('#setAutoDock').onchange = (e) => { S.autoDock = e.target.checked; saveS(); sendAutoDock(); };
+    $('#setWidget').onchange = (e) => { S.taskbarWidget = e.target.checked; saveS(); $('#setAutoDock').disabled = !S.taskbarWidget; invoke('res_set_widget', { value: S.taskbarWidget }).catch(() => {}); if (S.taskbarWidget) toast('Minimize Resonance to see it on the taskbar'); };
     // ---------- taskbar layout editor ----------
     const uid = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     let edId = S.widgetLayoutId, preview = null, dragIdx = -1;
@@ -1224,7 +1228,7 @@
       if (!animOn()) return;
       void de.offsetWidth; // restart the animation
       de.classList.add('res-nav-in');
-      clearTimeout(navInT); navInT = setTimeout(() => de.classList.remove('res-nav-in'), 520);
+      clearTimeout(navInT); navInT = setTimeout(() => de.classList.remove('res-nav-in'), 560);
     }
     function goSection(name) {
       const from = curSection();
@@ -1236,8 +1240,18 @@
       }
       if (R()) R().nav(name);
     }
+    // a thin loading bar while YouTube Music fetches the next page (only if it takes a moment)
+    let loadT = 0;
+    const loadBar = (on) => {
+      clearTimeout(loadT);
+      const el = $('#navLoad');
+      if (on) loadT = setTimeout(() => el.classList.add('on'), 120);
+      else el.classList.remove('on');
+    };
+    window.addEventListener('yt-navigate-start', () => loadBar(true));
     // any page change (sidebar playlists, albums, artists, back / forward) fades the new page in
     window.addEventListener('yt-navigate-finish', () => {
+      loadBar(false);
       const out = document.documentElement.classList.contains('res-nav-out');
       if (!out) { if (!animOn() || (state && state.playerPageOpen)) return; navDir(0); }
       setTimeout(navIn, out ? 40 : 0);
@@ -1338,8 +1352,6 @@
     $('#btnRepeat').onclick = () => cmd('repeat');
     $('#btnMute').onclick = () => cmd('mute');
     $('#btnLike').onclick = () => { cmd('like'); const b = $('#btnLike'); b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); };
-    $('#btnPlayerPage').onclick = () => cmd('playerPage');
-    $('#miniX').onclick = () => { cmd('hideMini'); $('#miniX').hidden = true; toast('Mini player hidden — open the full player to bring it back'); };
     $$('#avSeg button').forEach((b) => (b.onclick = () => {
       const mode = b.dataset.av;
       S.avMode = mode; saveS(); avAppliedFor = trackKey;
@@ -1347,11 +1359,40 @@
       if (mode === 'video' && state && !state.playerPageOpen) setTimeout(() => cmd('playerPage'), 250);
       $$('#avSeg button').forEach((x) => x.classList.toggle('on', x === b));
     }));
-    $('#pbTitle').onclick = () => cmd('playerPage');
-    $('#pbArtist').onclick = () => { if (state && state.artistId && R()) R().nav({ browseId: state.artistId }); };
+    // the song's name or picture opens the full player (video, lyrics, related); the artist opens their page
+    const openPlayer = (toggle) => {
+      if (!state) return;
+      if (!state.hasTrack) {
+        if (!(R() && R().last && R().last())) { toast('Pick a song to play first'); return; }
+        // just started: the song is only offered ("Continue"), so start it, then open the player
+        cmd('toggle');
+        let tries = 0;
+        const wait = setInterval(() => { if (state && state.hasTrack) { clearInterval(wait); if (!state.playerPageOpen) cmd('playerPage'); } else if (++tries > 20) clearInterval(wait); }, 250);
+        return;
+      }
+      if (toggle || !state.playerPageOpen) cmd('playerPage');
+    };
+    // artist / album pages: a second click (while that page is open) goes back to where you were
+    const onPage = (id) => !!id && new RegExp('/(?:channel|browse)/' + id.replace(/[^\w-]/g, '') + '(?:[/?#]|$)').test(location.pathname);
+    const openPage = (id) => {
+      if (!id || !R()) return;
+      if (state && state.playerPageOpen) { cmd('playerPage'); if (onPage(id)) return; } // the page is already underneath
+      if (onPage(id)) { history.back(); return; }
+      R().nav({ browseId: id });
+    };
+    const openArtist = () => { if (state) openPage(state.artistId); };
+    $('#pbTitle').onclick = () => openPlayer(true);
+    $('#pbArtBtn').onclick = () => openPlayer(true);
+    $('#pbArtist').onclick = openArtist;
+    $('#npArtBox').onclick = () => openPlayer(false);
+    $('#npTitle').onclick = () => openPlayer(false);
+    $('#npArtist').onclick = (e) => {
+      const t = e.composedPath()[0];
+      if (t && t.closest && t.closest('.np-al')) { if (state) openPage(state.albumId); }
+      else if (t && t.closest && t.closest('.np-a')) openArtist();
+    };
     const setNp = (open) => { S.npOpen = open; saveS(); layout(); if (open) { refreshQueue(); if (npTab === 'lyrics') loadLyrics(); } };
     $('#btnQueue').onclick = () => setNp(!S.npOpen);
-    $('#pbArtBtn').onclick = () => setNp(!S.npOpen);
     $('#btnCloseNp').onclick = () => setNp(false);
 
     // ---------- tint ----------
@@ -1362,6 +1403,17 @@
       const v = rgb ? rgb.join(', ') : '70, 50, 110';
       wrap.style.setProperty('--tint', v);
       if (R()) R().setTint(rgb);
+      setTimeout(sendMenuTheme, 0);
+    }
+    // the taskbar player's right-click menu is drawn in Resonance's colours, light/dark and corners
+    let menuThemeKey = '';
+    function sendMenuTheme() {
+      const cs = getComputedStyle(wrap), g = (k) => cs.getPropertyValue(k).trim();
+      const t = { bg: g('--panel'), text: g('--text'), muted: g('--muted'), hover: g('--hover'), line: g('--line'), accent: g('--accent'), tint: g('--tint'), rad: g('--rad'), light: wrap.classList.contains('light') };
+      const k = JSON.stringify(t);
+      if (k === menuThemeKey) return;
+      menuThemeKey = k;
+      invoke('res_win', { action: 'menutheme:' + k }).catch(() => {});
     }
 
     // ---------- render loop ----------
@@ -1388,7 +1440,16 @@
         $('#pbTitle').textContent = title; $('#pbTitle').title = title;
         $('#pbArtist').textContent = has ? s.artist : '';
         $('#npTitle').textContent = title;
-        $('#npArtist').textContent = has ? [s.artist, s.album].filter(Boolean).join(' • ') : 'Pick something to start';
+        // artist and album, each opening its own page
+        const npa = $('#npArtist');
+        while (npa.firstChild) npa.removeChild(npa.firstChild);
+        if (has) {
+          const a = document.createElement('span'); a.className = 'np-a'; a.textContent = s.artist; a.title = 'Open the artist'; npa.appendChild(a);
+          if (s.album) {
+            npa.appendChild(document.createTextNode(' • '));
+            const al = document.createElement('span'); al.className = 'np-al'; al.textContent = s.album; al.title = 'Open the album'; npa.appendChild(al);
+          }
+        } else npa.textContent = 'Pick something to start';
         if (!has) {
           $('#pbArt').removeAttribute('src'); $('#npArt').removeAttribute('src');
           const last = R() && R().last ? R().last() : null;
@@ -1431,21 +1492,13 @@
       if (av.mode) $$('#avSeg button').forEach((x) => x.classList.toggle('on', x.dataset.av === av.mode));
       // remember the user's choice and re-apply it when a new track starts
       if (has && S.avMode && av.mode && av.mode !== S.avMode && key !== avAppliedFor) { avAppliedFor = key; cmd('av', S.avMode); }
-      const mx = $('#miniX');
-      if (s.mini && !s.playerPageOpen) {
-        mx.hidden = false;
-        mx.style.left = Math.round(s.mini.x + s.mini.w - 34) + 'px';
-        mx.style.top = Math.round(s.mini.y + 6) + 'px';
-      } else mx.hidden = true;
-      $('#btnPlayerPage').classList.toggle('active', !!s.playerPageOpen);
-      setIcon($('#btnPlayerPage'), s.playerPageOpen ? 'collapse' : 'expand');
 
       if (s.avatar && s.avatar !== lastAvatar) { lastAvatar = s.avatar; updatePfp(); }
       if (s.url !== prevUrl) { updateNav(); updateAuthUI(); }
 
       try { extraRender(s, has, key); } catch (e) {}
       const sk = `${s.playing}|${key}`;
-      const sk2 = sk + '|' + (curTint ? curTint.join(',') : '') + '|' + (s.art || '') + '|' + s.like + '|' + Math.round(s.duration || 0) + '|' + !!s.shuffle + '|' + (s.muted ? 0 : s.volume);
+      const sk2 = sk + '|' + (curTint ? curTint.join(',') : '') + '|' + (s.art || '') + '|' + s.like + '|' + Math.round(s.duration || 0) + '|' + !!s.shuffle + '|' + (s.muted ? 0 : s.volume) + '|' + sleepShort();
       const due = (S.taskbarWidget || S.discord || S.remote) && Date.now() - lastSentAt > 3000;
       if (sk2 !== sentKey || due || Math.abs((s.time || 0) - lastSentTime - (Date.now() - lastSentAt) / 1000 * (s.playing ? 1 : 0)) > 3) {
         sentKey = sk2; lastSentAt = Date.now(); lastSentTime = s.time || 0;
@@ -1457,6 +1510,7 @@
           art: has ? s.art || null : last ? last.art || null : null,
           tint: curTint, time: has ? s.time || 0 : 0, duration: has ? s.duration || 0 : 0, like: s.like || null, shuffle: !!s.shuffle,
           volume: s.muted ? 0 : (s.volume == null ? null : s.volume),
+          sleep: sleepShort(),
         }).catch(() => {});
       }
     }
@@ -1708,6 +1762,13 @@
       if (sleep) b.textContent = sleep.mode === 'end' ? '♪' : String(Math.max(1, Math.ceil((sleep.until - Date.now()) / 60000)));
       $('#sleepOff').hidden = !sleep;
     }
+    // for the taskbar player's menu: "", "end" or minutes left
+    function sleepShort() {
+      if (!sleep) return '';
+      if (sleep.mode === 'end') return 'end';
+      return String(Math.max(1, Math.ceil((sleep.until - Date.now()) / 60000)));
+    }
+    window.__resSetSleep = (v) => setSleep(v === '' ? null : v);
     function setSleep(v) {
       if (sleep && sleep.origVol != null) cmd('volume', sleep.origVol);
       if (v === 'end') sleep = { mode: 'end', key: trackKey };

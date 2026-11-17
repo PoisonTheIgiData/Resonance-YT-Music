@@ -17,41 +17,50 @@
   .wb:hover { filter: brightness(1.08); }
   .wb:active { transform: scale(.96); }
   .wb { transition: transform .12s, filter .15s, background .6s, opacity .2s; }
-  /* the panel above the bubble */
-  #panel { position: absolute; display: none; box-sizing: border-box; width: 290px; max-height: 420px; overflow-y: auto; padding: 8px; border-radius: 14px;
-    background: linear-gradient(180deg, rgba(var(--rw-tint, 255,72,108), .30), rgba(22,22,28,.985) 120px), #16161c; color: #f4f4f7;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  /* the panel above the bubble (colours, light/dark and corners follow Resonance's theme) */
+  #panel { --pb: #16161c; --pt: #f4f4f7; --pm: #a3a3b0; --pl: rgba(255,255,255,.1); --ph: rgba(255,255,255,.09); --pr: 14px; --pa: #ff486c; --ps: #3a3a44; --pg: .30; }
+  #panel.light { --ps: #c9c9d2; --pg: .16; }
+  .vol-row { display: flex; align-items: center; gap: 8px; padding: 2px 6px 6px; }
+  .vol-b { width: 30px; height: 30px; border: 0; padding: 0; border-radius: 50%; background: none; color: var(--pt); display: grid; place-items: center; cursor: pointer; flex: none; }
+  .vol-b:hover { background: var(--ph); }
+  .vol-b svg { width: 19px; height: 19px; }
+  .vol-row input { flex: 1; min-width: 0; accent-color: var(--pa); cursor: pointer; }
+  .vol-row + .dv-head { border-top: 1px solid var(--pl); margin-top: 4px; padding-top: 10px; }
+  .vol-t { width: 36px; text-align: right; font-size: 12px; color: var(--pm); font-variant-numeric: tabular-nums; }
+  #panel { position: absolute; display: none; box-sizing: border-box; width: 290px; max-height: 420px; overflow-y: auto; padding: 8px; border-radius: var(--pr);
+    background: linear-gradient(180deg, rgba(var(--rw-tint, 255,72,108), var(--pg)), transparent 120px), var(--pb); color: var(--pt);
+    box-shadow: inset 0 0 0 1px var(--pl), 0 8px 24px rgba(0,0,0,.35); font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased; user-select: none; scrollbar-width: thin; animation: up .16s cubic-bezier(.2,.8,.2,1); }
   @keyframes up { from { opacity: 0; transform: translateY(8px); } }
   #panel svg { fill: currentColor; }
   .dv-head { display: flex; align-items: center; gap: 11px; padding: 6px 6px 8px; }
-  .dv-ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.08); color: #a3a3b0; flex: none; }
-  .dv-ic.on { background: rgba(var(--rw-tint, 255,72,108), .35); color: #fff; }
+  .dv-ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--pl); color: var(--pm); flex: none; }
+  .dv-ic.on { background: rgba(var(--rw-tint, 255,72,108), .35); color: var(--pt); }
   .dv-ic svg { width: 19px; height: 19px; }
   .dv-hm { flex: 1; min-width: 0; }
   .dv-t { font-weight: 700; font-size: 13.5px; }
-  .dv-s { font-size: 12px; color: #a3a3b0; margin-top: 1px; }
-  .sw { width: 40px; height: 22px; border-radius: 99px; border: 0; padding: 0; background: #3a3a44; position: relative; cursor: pointer; flex: none; transition: background .2s; }
+  .dv-s { font-size: 12px; color: var(--pm); margin-top: 1px; }
+  .sw { width: 40px; height: 22px; border-radius: 99px; border: 0; padding: 0; background: var(--ps); position: relative; cursor: pointer; flex: none; transition: background .2s; }
   .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s cubic-bezier(.2,.8,.2,1); }
-  .sw.on { background: #ff486c; } .sw.on::after { transform: translateX(18px); }
+  .sw.on { background: var(--pa); } .sw.on::after { transform: translateX(18px); }
   .sw:disabled { opacity: .5; cursor: default; }
-  .dv-sec { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #8b8b98; padding: 10px 8px 4px; border-top: 1px solid rgba(255,255,255,.08); margin-top: 4px; }
-  .dv-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 8px; border-radius: 8px; width: 100%; box-sizing: border-box; text-align: left;
-    background: none; border: 0; color: #e6e6ec; font: inherit; font-size: 13px; }
-  .dv-ri { width: 20px; display: grid; place-items: center; color: #a3a3b0; flex: none; }
+  .dv-sec { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--pm); padding: 10px 8px 4px; border-top: 1px solid var(--pl); margin-top: 4px; }
+  .dv-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 8px; border-radius: max(4px, calc(var(--pr) - 6px)); width: 100%; box-sizing: border-box; text-align: left;
+    background: none; border: 0; color: var(--pt); font: inherit; font-size: 13px; }
+  .dv-ri { width: 20px; display: grid; place-items: center; color: var(--pm); flex: none; }
   .dv-ri svg { width: 18px; height: 18px; }
   .dv-n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dv-nob { font-size: 11.5px; color: #8b8b98; }
+  .dv-nob { font-size: 11.5px; color: var(--pm); }
   button.dv-row { cursor: pointer; transition: background .12s; }
-  button.dv-row:hover { background: rgba(255,255,255,.09); }
-  .dv-row.on { color: #fff; font-weight: 650; }
-  .dv-row.on .dv-ri, .dv-ck { color: #ff486c; }
+  button.dv-row:hover { background: var(--ph); }
+  .dv-row.on { color: var(--pt); font-weight: 650; }
+  .dv-row.on .dv-ri, .dv-ck { color: var(--pa); }
   .dv-ck { width: 18px; display: grid; place-items: center; flex: none; }
   .dv-ck svg { width: 17px; height: 17px; }
-  .dv-empty { font-size: 12.5px; color: #8b8b98; padding: 10px 8px; }
-  .batt { position: relative; width: 22px; height: 11px; border: 1.5px solid #a3a3b0; border-radius: 3px; flex: none; box-sizing: border-box; }
-  .batt::after { content: ""; position: absolute; right: -4px; top: 2.5px; width: 2px; height: 3px; border-radius: 0 1px 1px 0; background: #a3a3b0; }
-  .batt i { position: absolute; left: 1px; top: 1px; bottom: 1px; max-width: calc(100% - 2px); border-radius: 1px; background: #e8e8ee; }
+  .dv-empty { font-size: 12.5px; color: var(--pm); padding: 10px 8px; }
+  .batt { position: relative; width: 22px; height: 11px; border: 1.5px solid var(--pm); border-radius: 3px; flex: none; box-sizing: border-box; }
+  .batt::after { content: ""; position: absolute; right: -4px; top: 2.5px; width: 2px; height: 3px; border-radius: 0 1px 1px 0; background: var(--pm); }
+  .batt i { position: absolute; left: 1px; top: 1px; bottom: 1px; max-width: calc(100% - 2px); border-radius: 1px; background: var(--pt); }
   .batt.low i { background: #ff5d5d; }
   .batt-t { font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; min-width: 32px; text-align: right; }
   .batt.low + .batt-t { color: #ff5d5d; }
@@ -73,7 +82,8 @@
   <div id="panel"></div>
 <script>
   // no browser right-click menu (Back / Refresh / Inspect…) on the taskbar player
-  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  // right-click: the same menu as the tray icon (play, next, show Resonance, quit…)
+  document.addEventListener('contextmenu', (e) => { e.preventDefault(); try { window.__TAURI_INTERNALS__.invoke('res_widget_cmd', { cmd: 'menu' }); } catch (x) {} });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'F5' || (e.ctrlKey && /^[rpsfu]$/i.test(e.key))) e.preventDefault();
     if (e.key === 'Escape') closePanel(true);
@@ -107,6 +117,8 @@
     phone: 'M17 1.01 7 1a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-1.99zM17 19H7V5h10v14z',
     devices: 'M4 6h18V4H4a2 2 0 0 0-2 2v11H0v3h14v-3H4V6zm19 2h-6a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1zm-1 9h-4v-7h4v7z',
     check: 'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+    vol: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
+    volOff: 'M16.5 12A4.5 4.5 0 0 0 14 8v2.2l2.5 2.5V12zM19 12c0 .9-.2 1.8-.5 2.6l1.5 1.5A8.9 8.9 0 0 0 21 12c0-4.3-3-7.9-7-8.8v2.1c2.9.9 5 3.5 5 6.7zM4.3 3L3 4.3 7.7 9H3v6h4l5 5v-6.7l4.3 4.3c-.7.5-1.4.9-2.3 1.2v2.1a9 9 0 0 0 3.7-1.8l2 2 1.3-1.3L4.3 3zM12 4L9.9 6.1 12 8.2V4z',
   };
   const svg = (n) => { const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 24 24'); const p = document.createElementNS(NS, 'path'); p.setAttribute('d', P[n] || ''); s.appendChild(p); return s; };
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -148,8 +160,31 @@
     f.appendChild(bt); f.appendChild(el('span', 'batt-t', b + '%'));
     return f;
   }
+  // ----- Resonance's own volume (top of the panel) -----
+  let vol = 50, lastVol = 50, volDrag = false;
+  const volRow = el('div', 'vol-row');
+  const volBtn = el('button', 'vol-b'); volBtn.appendChild(svg('vol'));
+  const volIn = el('input'); volIn.type = 'range'; volIn.min = 0; volIn.max = 100; volIn.step = 1; volIn.setAttribute('aria-label', 'Resonance volume');
+  const volT = el('span', 'vol-t');
+  volRow.title = 'Resonance volume (only the music, not the whole PC)';
+  volRow.append(volBtn, volIn, volT);
+  function paintVol(v) {
+    vol = Math.max(0, Math.min(100, Math.round(v)));
+    if (!volDrag) volIn.value = vol;
+    volT.textContent = vol + '%';
+    volBtn.firstChild.firstChild.setAttribute('d', P[vol ? 'vol' : 'volOff']);
+    volBtn.title = vol ? 'Mute' : 'Unmute';
+  }
+  volIn.addEventListener('input', () => { volDrag = true; paintVol(Number(volIn.value)); send('vol:' + vol); });
+  volIn.addEventListener('change', () => { volDrag = false; if (vol) lastVol = vol; });
+  volRow.addEventListener('wheel', (e) => { e.preventDefault(); e.stopPropagation(); paintVol(vol + (e.deltaY < 0 ? 5 : -5)); if (vol) lastVol = vol; send('vol:' + vol); }, { passive: false });
+  volBtn.onclick = () => { const v = vol ? 0 : (lastVol || 50); if (vol) lastVol = vol; paintVol(v); send('vol:' + v); };
+  paintVol(50);
+
   function buildPanel() {
     while ($panel.firstChild) $panel.removeChild($panel.firstChild);
+    $panel.appendChild(el('div', 'dv-sec', 'Resonance volume'));
+    $panel.appendChild(volRow);
     if (!dev) { $panel.appendChild(el('div', 'dv-empty', 'Looking for devices…')); return; }
     if (dev.bt !== 'none') {
       const on = dev.bt === 'on', n = (dev.devices || []).length;
@@ -262,7 +297,15 @@
     if (last) inst.update(last);
     paintBubble();
   };
-  window.resUpdate = (s) => { if (!s) return; last = s; inst.update(s); if (dev) paintBubble(); };
+  window.resUpdate = (s) => { if (!s) return; last = s; inst.update(s); if (dev) paintBubble(); if (s.volume != null && !volDrag) { paintVol(Number(s.volume) || 0); if (vol) lastVol = vol; } };
+  // Resonance's theme for the panel: colours, light/dark, corners
+  window.resTheme = (t) => {
+    if (!t) return;
+    const m = { bg: '--pb', text: '--pt', muted: '--pm', line: '--pl', hover: '--ph', accent: '--pa' };
+    for (const k in m) if (t[k]) $panel.style.setProperty(m[k], t[k]);
+    if (t.rad) $panel.style.setProperty('--pr', 'calc(' + t.rad + ' + 2px)');
+    $panel.classList.toggle('light', !!t.light);
+  };
   window.addEventListener('resize', () => inst.marquee());
   send('sync');
 </script>

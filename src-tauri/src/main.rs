@@ -63,6 +63,8 @@ struct AppState {
     /// Song-change pop-up: (on, corner, also when Resonance is in front, milliseconds)
     overlay: Mutex<(bool, String, bool, u64)>,
     last_play_key: Mutex<String>,
+    /// Resonance's colours for the taskbar player's right-click menu (sent by the page)
+    menu_theme: Mutex<serde_json::Value>,
     last_mode: Mutex<String>,
 }
 
@@ -133,6 +135,56 @@ where
 
 /// Settings → Animations (the page tells us when it changes).
 static ANIMS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+/// Settings → Taskbar → "Minimize into it when you click away".
+static AUTODOCK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+/// Bumped on every focus change of the main window (a pending "clicked away" check is dropped).
+static FOCUS_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// The main window has actually had focus since it was last brought back (focus changes while it's
+/// still appearing — e.g. the taskbar player you just clicked going away — are not "clicking away").
+static FOCUSED_SINCE_SHOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// The main window lost focus: with the taskbar player on, tuck Resonance into it — unless the
+/// focus only moved to another Resonance window, or the window is full screen / the mini player.
+fn auto_dock_soon(app: &AppHandle) {
+    use std::sync::atomic::Ordering;
+    let gen = FOCUS_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    if !AUTODOCK.load(Ordering::SeqCst) || !*app.state::<AppState>().widget_enabled.lock().unwrap() {
+        return;
+    }
+    let a = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(350));
+        if FOCUS_GEN.load(Ordering::SeqCst) != gen || DOCKING.load(Ordering::SeqCst) {
+            return;
+        }
+        if !FOCUSED_SINCE_SHOW.load(Ordering::SeqCst) {
+            return;
+        }
+        let Some(m) = main_window(&a) else { return };
+        if !m.is_visible().unwrap_or(false) || m.is_minimized().unwrap_or(true) || m.is_focused().unwrap_or(true) || m.is_fullscreen().unwrap_or(true) {
+            return;
+        }
+        if a.state::<AppState>().mini_prev.lock().map(|p| p.is_some()).unwrap_or(true) {
+            return; // the always-on-top mini player is meant to stay in view
+        }
+        if a.webview_windows().values().any(|w| w.label() != "main" && w.is_focused().unwrap_or(false)) {
+            return;
+        }
+        if m.is_devtools_open() {
+            return;
+        }
+        // signing in (Google's pages) or a link just opened in the browser: stay put
+        if m.url().map(|u| u.host_str() != Some("music.youtube.com")).unwrap_or(true) {
+            return;
+        }
+        if extras::now_ms() < extras::NO_AUTODOCK_UNTIL.load(Ordering::SeqCst) {
+            return;
+        }
+        if !dock(&a, &m, false) {
+            let _ = m.minimize();
+        }
+    });
+}
 
 /// Where the window was before it glided into the taskbar player, so it can grow back out of it.
 #[derive(Clone, Copy)]
@@ -144,7 +196,13 @@ struct Docked {
     /// screen → Windows "workspace" coordinates (differs when the taskbar is on the top or left)
     dx: i32,
     dy: i32,
+    /// it was maximized: `pos`/`size` are the maximized area, `normal` its restore size (workspace coordinates)
+    maxed: bool,
+    normal: (i32, i32, i32, i32),
 }
+/// Last known screen → workspace offset of the main window (needed while it's maximized).
+#[cfg_attr(not(windows), allow(dead_code))]
+static LAST_DELTA: Mutex<(i32, i32)> = Mutex::new((0, 0));
 static DOCKED: Mutex<Option<Docked>> = Mutex::new(None);
 /// True while the window is shrinking into the taskbar player.
 static DOCKING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -170,8 +228,12 @@ mod winfx {
     extern "system" {
         fn DwmSetWindowAttribute(hwnd: *mut c_void, attr: u32, value: *const c_void, size: u32) -> i32;
     }
+    pub const SW_HIDE: u32 = 0;
+    pub const SW_SHOWNORMAL: u32 = 1;
+    pub const SW_MAXIMIZE: u32 = 3;
     pub const SW_MINIMIZE: u32 = 6;
     pub const SW_RESTORE: u32 = 9;
+    pub const WPF_RESTORETOMAXIMIZED: u32 = 2;
     fn hwnd(w: &tauri::WebviewWindow) -> Option<*mut c_void> {
         w.hwnd().ok().map(|h| h.0 as *mut c_void)
     }
@@ -196,16 +258,37 @@ mod winfx {
     }
 }
 
-/// With the taskbar player on, Windows' minimize animation (aimed at the taskbar icon) is replaced
-/// by Resonance's own (into the taskbar player). Without it, Windows' animation is the right one.
-fn sync_transitions(app: &AppHandle) {
+/// Windows' own minimize / restore animation (aimed at the taskbar icon) is switched off only
+/// while Resonance glides into / out of the taskbar player, so maximize and restore keep theirs.
+fn transitions_off(app: &AppHandle, off: bool) {
     #[cfg(windows)]
     if let Some(m) = main_window(app) {
-        let on = *app.state::<AppState>().widget_enabled.lock().unwrap();
-        winfx::no_transitions(&m, on);
+        winfx::no_transitions(&m, off);
     }
     #[cfg(not(windows))]
-    let _ = app;
+    let _ = (app, off);
+}
+fn transitions_on_soon(app: &AppHandle) {
+    let a = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(400));
+        if DOCKED.lock().map(|d| d.is_none()).unwrap_or(true) && !DOCKING.load(std::sync::atomic::Ordering::SeqCst) {
+            transitions_off(&a, false);
+        }
+    });
+}
+/// Remember the screen → workspace offset while the window is a normal (not maximized) window.
+fn note_delta(w: &WebviewWindow) {
+    #[cfg(windows)]
+    if !w.is_maximized().unwrap_or(true) && !w.is_minimized().unwrap_or(true) {
+        if let (Some(p), Ok(pos)) = (winfx::placement(w), w.outer_position()) {
+            if let Ok(mut d) = LAST_DELTA.lock() {
+                *d = (pos.x - p.normal.left, pos.y - p.normal.top);
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = w;
 }
 
 fn restore_min_size(w: &WebviewWindow, mini: bool) {
@@ -223,50 +306,93 @@ fn widget_rect(app: &AppHandle, place: bool) -> Option<(PhysicalPosition<i32>, P
 }
 
 /// Minimize (or hide to the tray) by shrinking the window straight into the taskbar player.
-/// Returns false when that doesn't apply (animations off, no taskbar player, maximized…), so the
+/// Returns false when that doesn't apply (animations off, no taskbar player, full screen), so the
 /// caller does a normal minimize / hide.
 fn dock(app: &AppHandle, w: &WebviewWindow, to_tray: bool) -> bool {
     use std::sync::atomic::Ordering;
     if !ANIMS.load(Ordering::SeqCst) || !*app.state::<AppState>().widget_enabled.lock().unwrap() {
         return false;
     }
-    if !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(true) || w.is_maximized().unwrap_or(true) || w.is_fullscreen().unwrap_or(true) {
+    if !w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(true) || w.is_fullscreen().unwrap_or(true) {
+        return false;
+    }
+    let maxed = w.is_maximized().unwrap_or(false);
+    #[cfg(not(windows))]
+    if maxed {
         return false;
     }
     let (Ok(pos), Ok(size)) = (w.outer_position(), w.inner_size()) else { return false };
     let Some(target) = widget_rect(app, true) else { return false };
     #[cfg(windows)]
-    let (dx, dy) = winfx::placement(w).map(|p| (pos.x - p.normal.left, pos.y - p.normal.top)).unwrap_or((0, 0));
+    let pl = winfx::placement(w);
+    #[cfg(windows)]
+    let (dx, dy, normal) = match pl {
+        Some(p) => {
+            if !maxed {
+                note_delta(w);
+            }
+            let d = *LAST_DELTA.lock().unwrap();
+            (d.0, d.1, (p.normal.left, p.normal.top, p.normal.right, p.normal.bottom))
+        }
+        None if maxed => return false,
+        None => (0, 0, (0, 0, 0, 0)),
+    };
     #[cfg(not(windows))]
-    let (dx, dy) = (0, 0);
+    let (dx, dy, normal) = (0, 0, (0, 0, 0, 0));
     let mini = app.state::<AppState>().mini_prev.lock().unwrap().is_some();
-    *DOCKED.lock().unwrap() = Some(Docked { pos, size, mini, dx, dy });
+    *DOCKED.lock().unwrap() = Some(Docked { pos, size, mini, dx, dy, maxed, normal });
     DOCKING.store(true, Ordering::SeqCst);
-    sync_transitions(app);
+    transitions_off(app, true);
     let _ = w.eval("window.__resDock && window.__resDock(150)"); // tint the window like the taskbar player
     let _ = w.set_min_size(None::<tauri::Size>);
+    #[cfg(windows)]
+    if maxed {
+        // become a normal window covering exactly the same area (nothing visibly changes), so it can shrink
+        if let Some(mut p) = pl {
+            p.flags = 0;
+            p.show_cmd = winfx::SW_SHOWNORMAL;
+            p.normal = winfx::Rect { left: pos.x - dx, top: pos.y - dy, right: pos.x - dx + size.width as i32, bottom: pos.y - dy + size.height as i32 };
+            winfx::set_placement(w, &p);
+        }
+    }
     let a = app.clone();
     animate_window(w, (pos, size), target, 250, move |w| {
         // the taskbar player appears exactly where the window ended up, then the window goes away
         maybe_show_widget_as(&a, "pop");
-        if to_tray {
-            let _ = w.hide();
-            let _ = w.set_position(pos);
-            let _ = w.set_size(size);
-        } else {
-            #[cfg(windows)]
+        #[cfg(windows)]
+        {
+            let back = if maxed {
+                winfx::Rect { left: normal.0, top: normal.1, right: normal.2, bottom: normal.3 }
+            } else {
+                winfx::Rect { left: pos.x - dx, top: pos.y - dy, right: pos.x - dx + size.width as i32, bottom: pos.y - dy + size.height as i32 }
+            };
+            if to_tray {
+                // hide through Tauri first: it keeps track of whether the window is shown, and a window
+                // hidden behind its back can't be shown again (it thinks it's still visible)
+                let _ = w.hide();
+            }
             match winfx::placement(w) {
                 Some(mut p) => {
-                    // minimized, but remembering the full-size spot to come back to
-                    p.flags = 0;
-                    p.show_cmd = winfx::SW_MINIMIZE;
-                    p.normal = winfx::Rect { left: pos.x - dx, top: pos.y - dy, right: pos.x - dx + size.width as i32, bottom: pos.y - dy + size.height as i32 };
+                    // gone, but remembering the full-size spot (and whether it was maximized) to come back to
+                    p.flags = if maxed && !to_tray { winfx::WPF_RESTORETOMAXIMIZED } else { 0 };
+                    p.show_cmd = if to_tray { winfx::SW_HIDE } else { winfx::SW_MINIMIZE };
+                    p.normal = back;
                     winfx::set_placement(w, &p);
                 }
-                None => { let _ = w.set_position(pos); let _ = w.set_size(size); let _ = w.minimize(); }
+                None => {
+                    if to_tray { let _ = w.hide(); }
+                    let _ = w.set_position(pos);
+                    let _ = w.set_size(size);
+                    if !to_tray { let _ = w.minimize(); }
+                }
             }
-            #[cfg(not(windows))]
-            { let _ = w.set_position(pos); let _ = w.set_size(size); let _ = w.minimize(); }
+        }
+        #[cfg(not(windows))]
+        {
+            if to_tray { let _ = w.hide(); }
+            let _ = w.set_position(pos);
+            let _ = w.set_size(size);
+            if !to_tray { let _ = w.minimize(); }
         }
         DOCKING.store(false, Ordering::SeqCst);
         remember_mode(&a);
@@ -365,6 +491,85 @@ fn destroy_window(app: &AppHandle, label: &str) {
     }
 }
 
+const MENU_W: f64 = 250.0;
+const MENU_H: f64 = 274.0;
+
+/// Resonance's colours, light/dark and corners for the small windows (taskbar player panel,
+/// song-change pop-up, right-click menu).
+fn push_theme(app: &AppHandle) {
+    let t = app.state::<AppState>().menu_theme.lock().unwrap().clone();
+    if t.is_null() {
+        return;
+    }
+    for label in ["widget", "overlay"] {
+        if let Some(w) = app.get_webview_window(label) {
+            let _ = w.eval(format!("window.resTheme && window.resTheme({t})"));
+        }
+    }
+}
+
+fn push_menu(app: &AppHandle) {
+    let Some(w) = app.get_webview_window("menu") else { return };
+    let st = app.state::<AppState>();
+    let np = st.now_playing.lock().unwrap().clone();
+    let has = np.get("title").and_then(|v| v.as_str()).map(|t| !t.is_empty()).unwrap_or(false);
+    let g = |k: &str| np.get(k).cloned().unwrap_or(serde_json::Value::Null);
+    let data = serde_json::json!({
+        "theme": st.menu_theme.lock().unwrap().clone(),
+        "title": if has { g("title") } else { serde_json::json!("Nothing playing") },
+        "artist": if has { g("artist") } else { serde_json::json!("") },
+        "art": if has { g("art") } else { serde_json::Value::Null },
+        "playing": np.get("playing").and_then(|v| v.as_bool()).unwrap_or(false),
+        "like": g("like"), "shuffle": g("shuffle"), "volume": g("volume"), "sleep": g("sleep"),
+    });
+    let _ = w.eval(format!("window.resMenu && window.resMenu({data})"));
+}
+
+/// The taskbar player's right-click menu: a small window just above the player, on top of it.
+fn open_menu(app: &AppHandle) {
+    if app.get_webview_window("menu").is_none() {
+        #[allow(unused_mut)]
+        let mut b = WebviewWindowBuilder::new(app, "menu", WebviewUrl::App("menu.html".into()))
+            .title("Resonance menu")
+            .disable_drag_drop_handler()
+            .inner_size(MENU_W, MENU_H)
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .resizable(false)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .visible(false);
+        #[cfg(windows)]
+        {
+            b = b.additional_browser_args(&browser_args(extras::smtc_enabled(app)));
+        }
+        if let Err(e) = b.build() {
+            log_line(&format!("taskbar player menu unavailable: {e}"));
+            return;
+        }
+    }
+    let Some(w) = app.get_webview_window("menu") else { return };
+    let Some(widget) = app.get_webview_window("widget") else { return };
+    let Some(mon) = widget.current_monitor().ok().flatten().or_else(|| widget.primary_monitor().ok().flatten()) else { return };
+    let scale = mon.scale_factor();
+    let (mw, mh) = ((MENU_W * scale) as i32, (MENU_H * scale) as i32);
+    let (mx, my) = (mon.position().x, mon.position().y);
+    let (sw, sh) = (mon.size().width as i32, mon.size().height as i32);
+    let wp = widget.outer_position().unwrap_or_default();
+    let cursor_x = app.cursor_position().map(|p| p.x as i32).unwrap_or(wp.x + mw / 2);
+    let x = (cursor_x - mw / 2).clamp(mx, mx + sw - mw);
+    // above the taskbar player (below it when the taskbar is at the top of the screen)
+    let y = if wp.y > my + sh / 2 { wp.y - mh + (4.0 * scale) as i32 } else { wp.y + widget.inner_size().map(|s| s.height as i32).unwrap_or(40) - (4.0 * scale) as i32 };
+    let _ = w.set_size(PhysicalSize::new(mw as u32, mh as u32));
+    let _ = w.set_position(PhysicalPosition::new(x, y.clamp(my, my + sh - mh)));
+    push_menu(app);
+    let _ = w.show();
+    let _ = w.set_always_on_top(true);
+    raise_topmost(&w); // above the taskbar player, which is always on top as well
+    let _ = w.set_focus();
+}
+
 /// Song-change pop-up in a corner of the screen.
 fn show_overlay(app: &AppHandle, data: serde_json::Value) {
     let Some(w) = app.get_webview_window("overlay") else { return };
@@ -388,6 +593,7 @@ fn show_overlay(app: &AppHandle, data: serde_json::Value) {
     }
     let mut d = data;
     d["ms"] = serde_json::json!(ms);
+    push_theme(app);
     let _ = w.eval(format!("window.resOverlay && window.resOverlay({d})"));
     let _ = w.show();
     raise_topmost(&w);
@@ -441,8 +647,21 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
 }
 
+/// Show a window even if Tauri's idea of it is out of date (it believes it's visible while it's
+/// actually hidden: then a plain show() does nothing).
+fn force_show(w: &WebviewWindow) {
+    if !w.is_visible().unwrap_or(true) {
+        let _ = w.hide(); // brings Tauri's record in line with reality
+    }
+    let _ = w.show();
+}
+
 fn show_main(app: &AppHandle) {
     use std::sync::atomic::Ordering;
+    // while it reappears, losing focus must not send it straight back into the taskbar player
+    FOCUSED_SINCE_SHOW.store(false, Ordering::SeqCst);
+    FOCUS_GEN.fetch_add(1, Ordering::SeqCst); // drop a pending "clicked away" check
+    extras::NO_AUTODOCK_UNTIL.store(extras::now_ms() + 1500, Ordering::SeqCst);
     let from = widget_rect(app, false).filter(|_| app.get_webview_window("widget").map(|w| w.is_visible().unwrap_or(false)).unwrap_or(false));
     hide_widget(app);
     if let Some(w) = main_window(app) {
@@ -471,24 +690,42 @@ fn show_main(app: &AppHandle) {
                     let _ = w.set_position(from.0);
                     let _ = w.set_size(from.1);
                 }
-                let _ = w.show();
+                force_show(&w);
                 let _ = w.set_focus();
+                let a = app.clone();
                 animate_window(&w, from, (d.pos, d.size), 260, move |w| {
                     restore_min_size(w, d.mini);
+                    #[cfg(windows)]
+                    if d.maxed {
+                        // back to a real maximized window (with its old restore size)
+                        if let Some(mut p) = winfx::placement(w) {
+                            p.flags = 0;
+                            p.show_cmd = winfx::SW_MAXIMIZE;
+                            p.normal = winfx::Rect { left: d.normal.0, top: d.normal.1, right: d.normal.2, bottom: d.normal.3 };
+                            winfx::set_placement(w, &p);
+                        }
+                    }
                     let _ = w.eval("window.__resAppear && window.__resAppear()");
+                    transitions_on_soon(&a);
                 });
             }
             (d, _) => {
                 if hidden || d.is_some() {
                     let _ = w.eval("window.__resAppear && window.__resAppear()"); // fades in (no Windows animation for this)
                 }
+                if minimized {
+                    // (same as force_show: Tauri may not know it was minimized by Resonance's own glide)
+                    let _ = w.minimize();
+                }
                 let _ = w.unminimize();
                 if let Some(d) = d {
-                    if hidden { let _ = w.set_position(d.pos); let _ = w.set_size(d.size); }
+                    if hidden && !d.maxed { let _ = w.set_position(d.pos); let _ = w.set_size(d.size); }
                     restore_min_size(&w, d.mini);
                 }
-                let _ = w.show();
+                force_show(&w);
+                if d.map(|d| d.maxed && hidden).unwrap_or(false) { let _ = w.maximize(); }
                 let _ = w.set_focus();
+                transitions_on_soon(app);
             }
         }
     }
@@ -698,6 +935,17 @@ fn res_win(window: WebviewWindow, action: String) -> Result<bool, String> {
         "minimize" => {
             if !instant && dock(window.app_handle(), &window, false) { Ok(()) } else { window.minimize() }
         }
+        t if t.starts_with("menutheme:") => {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t[10..]) {
+                *window.state::<AppState>().menu_theme.lock().unwrap() = v;
+                push_theme(window.app_handle());
+            }
+            Ok(())
+        }
+        "autodock:on" | "autodock:off" => {
+            AUTODOCK.store(action == "autodock:on", std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
         "anim:on" | "anim:off" => {
             ANIMS.store(action == "anim:on", std::sync::atomic::Ordering::SeqCst);
             Ok(())
@@ -857,11 +1105,12 @@ fn res_player_state(
     like: Option<String>,
     shuffle: Option<bool>,
     volume: Option<f64>,
+    sleep: Option<String>,
 ) {
     extras::discord_update(&title, &artist, art.clone(), playing, time.unwrap_or(0.0), duration.unwrap_or(0.0));
     *state.now_playing.lock().unwrap() = serde_json::json!({
         "playing": playing, "title": title, "artist": artist, "art": art, "tint": tint,
-        "time": time, "duration": duration, "like": like, "shuffle": shuffle, "volume": volume
+        "time": time, "duration": duration, "like": like, "shuffle": shuffle, "volume": volume, "sleep": sleep
     });
     // song-change pop-up
     if playing && !title.is_empty() {
@@ -899,7 +1148,6 @@ fn res_player_state(
 #[tauri::command]
 fn res_set_widget(app: AppHandle, state: tauri::State<'_, AppState>, value: bool) {
     *state.widget_enabled.lock().unwrap() = value;
-    sync_transitions(&app);
     if !value {
         destroy_window(&app, "widget");
     } else if app.get_webview_window("widget").is_none() {
@@ -941,6 +1189,32 @@ fn res_widget_cmd(app: AppHandle, cmd: String) {
             }
         }
         "show" => show_main(&app),
+        // right-click on the taskbar player: the tray icon's options, in Resonance's own style
+        "menu" => {
+            let a = app.clone();
+            std::thread::spawn(move || open_menu(&a)); // creating the window can't happen on this thread
+        }
+        "menu:ready" => push_menu(&app),
+        c if c.starts_with("vol:") => {
+            if let (Ok(v), Some(w)) = (c[4..].parse::<f64>(), main_window(&app)) {
+                let _ = w.eval(format!("window.__res && window.__res.cmd('volume', {})", v.clamp(0.0, 100.0).round()));
+            }
+        }
+        c if c.starts_with("sleep:") => {
+            // "", "end" or a number of minutes
+            let v = &c[6..];
+            if v.is_empty() || v == "end" || (v.len() <= 3 && v.chars().all(|ch| ch.is_ascii_digit())) {
+                if let Some(w) = main_window(&app) {
+                    let _ = w.eval(format!("window.__resSetSleep && window.__resSetSleep({v:?})"));
+                }
+            }
+        }
+        "menu:close" => {
+            if let Some(w) = app.get_webview_window("menu") {
+                let _ = w.hide();
+            }
+        }
+        "quit" => app.exit(0),
         "overlay:hide" => {
             if let Some(w) = app.get_webview_window("overlay") {
                 let _ = w.hide();
@@ -949,6 +1223,7 @@ fn res_widget_cmd(app: AppHandle, cmd: String) {
         "sync" => {
             push_widget_layout(&app);
             push_widget_state(&app);
+            push_theme(&app);
             if let Some(st) = app.state::<devices::Devices>().last.lock().unwrap().clone() {
                 if let Some(w) = app.get_webview_window("widget") {
                     let _ = w.eval(format!("window.resDev && window.resDev({})", serde_json::to_string(&st).unwrap_or_default()));
@@ -1300,13 +1575,30 @@ fn main() {
                                 restore_min_size(&m, d.mini);
                                 let _ = m.eval("window.__resAppear && window.__resAppear()");
                             }
+                            transitions_on_soon(app);
+                        }
+                        if !DOCKING.load(std::sync::atomic::Ordering::SeqCst) {
+                            if let Some(m) = main_window(app) { note_delta(&m); }
                         }
                         hide_widget_soon(app);
                     }
                     remember_mode(app);
                     main_memory(app);
                 }
-                WindowEvent::Focused(true) => { hide_widget(app); main_memory(app); }
+                WindowEvent::Focused(true) => {
+                    FOCUS_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    // counts once it's fully back (the grow-out animation is over)
+                    let a = app.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_millis(400));
+                        if main_window(&a).map(|m| m.is_focused().unwrap_or(false)).unwrap_or(false) {
+                            FOCUSED_SINCE_SHOW.store(true, std::sync::atomic::Ordering::SeqCst);
+                        }
+                    });
+                    hide_widget(app);
+                    main_memory(app);
+                }
+                WindowEvent::Focused(false) => auto_dock_soon(app),
                 _ => {}
             }
         })
