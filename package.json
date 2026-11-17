@@ -13,7 +13,7 @@
   "description": "A desktop player for YouTube Music (Tauri 2 + WebView2)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/PoisonTheIgiData/Ressonance-YT-Music.git"
+    "url": "https://github.com/PoisonTheIgiData/Resonance-YT-Music.git"
   },
   "license": "Apache-2.0"
 }

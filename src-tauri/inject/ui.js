@@ -45,7 +45,7 @@
   S.colorModeMigrated = true;
   const saveS = () => { try { localStorage.setItem('res-settings', JSON.stringify(S)); } catch (e) {} };
   // Official releases: Resonance only ever checks this repository for updates.
-  const UPDATE_REPO = 'PoisonTheIgiData/Ressonance-YT-Music';
+  const UPDATE_REPO = 'PoisonTheIgiData/Resonance-YT-Music';
   S.updateRepo = UPDATE_REPO;
   const RW = () => window.ResWidget;
   const allLayouts = () => (RW() ? RW().PRESETS : []).concat(S.widgetLayouts || []);
@@ -667,7 +667,7 @@
             <div class="st-note">Discord must be open on this PC. Nothing is shown while music is paused.</div>
           </section>
           <section data-pane="updates" hidden>
-            <div class="setting"><div><div class="s-title">What's new</div><div class="s-sub">Changes in this version, from its GitHub release notes</div></div><button class="btn-small" id="wnOpen">${ic('sparkle')}What's new</button></div>
+            <div class="setting"><div><div class="s-title">What's new</div><div class="s-sub">Changes in this version and all earlier ones, from the GitHub release notes</div></div><button class="btn-small" id="wnOpen">${ic('sparkle')}What's new</button></div>
             <div class="st-note info">${ic('shield')}<span>How updates work: Resonance asks <b>GitHub</b> for the latest release of its official repository (below) and compares that release's version number with this one (<b id="curVer">1.0.0</b>). If it's newer, it offers the installer from that same GitHub release. No other server is contacted.</span></div>
             <div class="setting"><div><div class="s-title">Releases</div><div class="s-sub">github.com/${UPDATE_REPO}</div></div><button class="btn-small" id="upRepoOpen">${ic('link')}Open on GitHub</button></div>
             <label class="setting"><div><div class="s-title">Check for updates automatically</div><div class="s-sub">Once a day when Resonance starts. Off by default.</div></div><input type="checkbox" class="toggle" data-set="autoUpdate"></label>
@@ -2482,14 +2482,20 @@
       let r = null;
       try { r = await invoke('res_release_notes', { repo: UPDATE_REPO, version: v || null }); } catch (e) { r = null; }
       // the release page ends with download instructions for new users ("---" then "Download … setup.exe");
-      // they don't belong in the app, which is already installed
-      const notes = r && r.body ? String(r.body).replace(/\r/g, '').replace(/\n-{3,}\s*\n(?=[\s\S]*setup\.exe)[\s\S]*$/i, '').replace(/^-{3,}\s*\n(?=[\s\S]*setup\.exe)[\s\S]*$/i, '').trim() : '';
-      if (notes) {
-        setHTML($('#wnBody'), mdToHtml(notes));
-        if (r.page) { $('#wnGh').hidden = false; $('#wnGh').onclick = () => invoke('res_open_url', { url: r.page }).catch(() => {}); }
-      } else {
-        setHTML($('#wnBody'), '<p>This version has no release notes on GitHub (or GitHub couldn’t be reached).</p>');
+      // they don't belong in the app, which is already installed. The "Changes in x.y.z:" line repeats the heading.
+      const clean = (b) => String(b || '').replace(/\r/g, '').replace(/\n-{3,}\s*\n(?=[\s\S]*setup\.exe)[\s\S]*$/i, '').replace(/^-{3,}\s*\n(?=[\s\S]*setup\.exe)[\s\S]*$/i, '').replace(/^\s*Changes in [\w.\-+]+:\s*\n?/i, '').trim();
+      const day = (d) => { try { return d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : ''; } catch (e) { return ''; } };
+      const notes = r ? clean(r.body) : '';
+      const hist = (r && Array.isArray(r.history) ? r.history : []).filter((h) => h && h.version);
+      if (!r) { setHTML($('#wnBody'), '<p>Couldn’t reach GitHub for the release notes. Try again later.</p>'); return; }
+      let html = notes ? mdToHtml(notes) : '<p>No details for this version.</p>';
+      if (r.date) html = `<div class="wn-date">${esc(day(r.date))}</div>` + html;
+      if (hist.length) {
+        html += '<h3 class="wn-earlier">Earlier updates</h3>';
+        html += hist.map((h, i) => `<details class="wn-old"${i === 0 ? ' open' : ''}><summary><b>${esc(h.version)}</b><span>${esc(day(h.date))}</span></summary>${clean(h.body) ? mdToHtml(clean(h.body)) : '<p>No details for this version.</p>'}</details>`).join('');
       }
+      setHTML($('#wnBody'), html);
+      if (r.page) { $('#wnGh').hidden = false; $('#wnGh').onclick = () => invoke('res_open_url', { url: r.page }).catch(() => {}); }
     }
     $('#wnOpen').onclick = () => openWhatsNew();
     function whatsNewCheck(v) {

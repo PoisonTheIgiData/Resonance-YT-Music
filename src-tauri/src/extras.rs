@@ -11,10 +11,12 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
-const UA: &str = "Resonance-Desktop (https://github.com/PoisonTheIgiData/Ressonance-YT-Music)";
+const UA: &str = "Resonance-Desktop (https://github.com/PoisonTheIgiData/Resonance-YT-Music)";
 
 /// The official repository: updates and release notes only ever come from here.
-pub const UPDATE_REPO: &str = "PoisonTheIgiData/Ressonance-YT-Music";
+pub const UPDATE_REPO: &str = "PoisonTheIgiData/Resonance-YT-Music";
+/// The repository's earlier name (GitHub redirects it to the new one).
+pub const OLD_UPDATE_REPO: &str = "PoisonTheIgiData/Ressonance-YT-Music";
 
 // ---------------- preferences needed before the window exists ----------------
 
@@ -144,18 +146,50 @@ pub async fn res_release_notes(app: AppHandle, repo: Option<String>, version: Op
     }
     let ver = version.unwrap_or_else(|| app.package_info().version.to_string());
     let ver: String = ver.chars().filter(|c| c.is_ascii_alphanumeric() || ".-+".contains(*c)).take(40).collect();
-    let body = tauri::async_runtime::spawn_blocking(move || {
-        get_text(&format!("https://api.github.com/repos/{repo}/releases/tags/v{ver}"), "application/vnd.github+json")
-            .or_else(|_| get_text(&format!("https://api.github.com/repos/{repo}/releases/tags/{ver}"), "application/vnd.github+json"))
+    let (one, list, ver) = tauri::async_runtime::spawn_blocking(move || {
+        let one = get_text(&format!("https://api.github.com/repos/{repo}/releases/tags/v{ver}"), "application/vnd.github+json")
+            .or_else(|_| get_text(&format!("https://api.github.com/repos/{repo}/releases/tags/{ver}"), "application/vnd.github+json"));
+        // every earlier release too, for the "Earlier updates" list
+        let list = get_text(&format!("https://api.github.com/repos/{repo}/releases?per_page=50"), "application/vnd.github+json");
+        (one, list, ver)
     })
     .await
-    .map_err(|e| e.to_string())??;
-    let j: Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string())?;
+    let cur = semver::Version::parse(ver.trim_start_matches(['v', 'V'])).ok();
+    let mut history: Vec<(semver::Version, Value)> = Vec::new();
+    if let Ok(body) = list {
+        if let Ok(Value::Array(items)) = serde_json::from_str::<Value>(&body) {
+            for r in items {
+                if r["draft"].as_bool().unwrap_or(false) || r["prerelease"].as_bool().unwrap_or(false) {
+                    continue;
+                }
+                let tag = r["tag_name"].as_str().unwrap_or("").trim_start_matches(['v', 'V']).to_string();
+                let Ok(v) = semver::Version::parse(&tag) else { continue };
+                if cur.as_ref().map(|c| &v >= c).unwrap_or(false) {
+                    continue; // only versions before this one
+                }
+                history.push((v.clone(), json!({
+                    "version": v.to_string(),
+                    "body": r["body"].as_str().unwrap_or(""),
+                    "date": r["published_at"].as_str().unwrap_or(""),
+                    "page": r["html_url"].as_str().unwrap_or(""),
+                })));
+            }
+        }
+    }
+    history.sort_by(|a, b| b.0.cmp(&a.0));
+    let history: Vec<Value> = history.into_iter().map(|h| h.1).collect();
+    let j: Value = match one {
+        Ok(body) => serde_json::from_str(&body).map_err(|e| e.to_string())?,
+        Err(e) if history.is_empty() => return Err(e),
+        Err(_) => Value::Null,
+    };
     Ok(json!({
         "name": j["name"].as_str().unwrap_or(""),
         "body": j["body"].as_str().unwrap_or(""),
         "page": j["html_url"].as_str().unwrap_or(""),
         "date": j["published_at"].as_str().unwrap_or(""),
+        "history": history,
     }))
 }
 
@@ -163,7 +197,10 @@ pub async fn res_release_notes(app: AppHandle, repo: Option<String>, version: Op
 #[tauri::command]
 pub async fn res_install_update(app: AppHandle, url: String) -> Result<(), String> {
     // only installers attached to the official repository's releases
-    if !url.starts_with(&format!("https://github.com/{UPDATE_REPO}/releases/download/")) {
+    // (the repository was renamed from "Ressonance-YT-Music"; GitHub may report either name)
+    let lower = url.to_ascii_lowercase();
+    let ok = [UPDATE_REPO, OLD_UPDATE_REPO].iter().any(|r| lower.starts_with(&format!("https://github.com/{}/releases/download/", r.to_ascii_lowercase())));
+    if !ok || url.contains("..") {
         return Err("Updates are only downloaded from Resonance's GitHub releases".into());
     }
     let path = std::env::temp_dir().join("Resonance-update-setup.exe");

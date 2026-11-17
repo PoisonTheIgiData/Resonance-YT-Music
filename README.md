@@ -2,11 +2,11 @@
 
 **A desktop player for YouTube Music on Windows: a Spotify-style app built on Tauri 2 and Windows' built-in WebView2.**
 
-[![Latest release](https://img.shields.io/github/v/release/PoisonTheIgiData/Ressonance-YT-Music?label=download&sort=semver)](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/releases/latest)
-[![Check](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/actions/workflows/check.yml/badge.svg)](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/actions/workflows/check.yml)
+[![Latest release](https://img.shields.io/github/v/release/PoisonTheIgiData/Resonance-YT-Music?label=download&sort=semver)](https://github.com/PoisonTheIgiData/Resonance-YT-Music/releases/latest)
+[![Check](https://github.com/PoisonTheIgiData/Resonance-YT-Music/actions/workflows/check.yml/badge.svg)](https://github.com/PoisonTheIgiData/Resonance-YT-Music/actions/workflows/check.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**[⬇ Download the latest installer](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/releases/latest)** (`Resonance_<version>_x64-setup.exe`)
+**[⬇ Download the latest installer](https://github.com/PoisonTheIgiData/Resonance-YT-Music/releases/latest)** (`Resonance_<version>_x64-setup.exe`)
 
 Resonance opens the real YouTube Music website (music.youtube.com) and wraps it in its own interface: a sidebar,
 player bar, now-playing panel, lyrics, a taskbar player, a mini player and much more. Your library, playlists,
@@ -99,7 +99,7 @@ likes and recommendations are YouTube Music's own, because you sign in with your
 
 ## Download and install
 
-1. Go to **[Releases](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/releases/latest)** and download `Resonance_<version>_x64-setup.exe`.
+1. Go to **[Releases](https://github.com/PoisonTheIgiData/Resonance-YT-Music/releases/latest)** and download `Resonance_<version>_x64-setup.exe`.
 2. Run it. Windows SmartScreen may say *"Windows protected your PC"* because the installer isn't code-signed:
    click **More info → Run anyway**.
 3. Resonance installs for your user only (no administrator rights needed) and adds a Start-menu entry.
@@ -122,7 +122,7 @@ Updating: install a newer version over the old one, or let Resonance check for y
 
 1. Install **Rust** from https://rustup.rs (accept the defaults; it also installs the Microsoft C++ build tools
    if they're missing) and **Node.js LTS** from https://nodejs.org.
-2. Get the code: `git clone https://github.com/PoisonTheIgiData/Ressonance-YT-Music.git`, or use
+2. Get the code: `git clone https://github.com/PoisonTheIgiData/Resonance-YT-Music.git`, or use
    *Code → Download ZIP* on GitHub and unzip it.
 3. Double-click **`Build.bat`**.
    - The first build downloads and compiles everything and takes several minutes. Later builds are much faster.
@@ -340,7 +340,7 @@ or start from Midnight, Forest, Wine, Ember or Mono. **Save as theme…** keeps 
 ## Updates and releases
 
 Updates are **off by default**. When on, Resonance checks **only GitHub, and only this repository's latest release**
-(`PoisonTheIgiData/Ressonance-YT-Music`). It compares that release's version number with the installed one. No other server is involved.
+(`PoisonTheIgiData/Resonance-YT-Music`). It compares that release's version number with the installed one. No other server is involved.
 In Resonance: **Settings → Updates → Check for updates**, or turn on automatic checks (once a day at start-up).
 **Install update** downloads the installer attached to that GitHub release (nothing else is accepted) and installs it
 over the current version: a short progress bar, no setup questions, and Resonance opens again by itself. Your settings stay.
@@ -524,7 +524,7 @@ Licensed under the **Apache License 2.0**; see [LICENSE](LICENSE).
 
 ## Contributing
 
-Bug reports and ideas are welcome in [Issues](https://github.com/PoisonTheIgiData/Ressonance-YT-Music/issues). For bugs, please include the
+Bug reports and ideas are welcome in [Issues](https://github.com/PoisonTheIgiData/Resonance-YT-Music/issues). For bugs, please include the
 **Health check** report and **Recent problems** (Settings → Health check → *Copy report* / *Copy errors*).
 
 Resonance is not affiliated with, endorsed by or sponsored by Google, YouTube or Discord. YouTube Music is a

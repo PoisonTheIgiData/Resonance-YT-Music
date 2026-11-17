@@ -2,7 +2,7 @@
 name = "resonance"
 version = "1.1.2"
 description = "A desktop player for YouTube Music"
-repository = "https://github.com/PoisonTheIgiData/Ressonance-YT-Music"
+repository = "https://github.com/PoisonTheIgiData/Resonance-YT-Music"
 license = "Apache-2.0"
 edition = "2021"
 

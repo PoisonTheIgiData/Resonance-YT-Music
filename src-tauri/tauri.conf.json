@@ -34,7 +34,7 @@
         "installMode": "currentUser"
       }
     },
-    "homepage": "https://github.com/PoisonTheIgiData/Ressonance-YT-Music",
+    "homepage": "https://github.com/PoisonTheIgiData/Resonance-YT-Music",
     "license": "Apache-2.0",
     "longDescription": "Resonance wraps YouTube Music in a Spotify-style desktop interface with a taskbar player, mini player, synced lyrics, equalizer and phone remote."
   }
